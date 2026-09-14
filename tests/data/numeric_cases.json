@@ -1,0 +1,325 @@
+[
+  {
+    "id": "pesos",
+    "text": "125.50 pesos",
+    "type": "importe",
+    "decimal": "125.50",
+    "unit": "pesos",
+    "multiplier": "1",
+    "normalized": "125.50",
+    "confidence": "high",
+    "usable": true
+  },
+  {
+    "id": "miles",
+    "text": "2.50 miles de pesos",
+    "type": "importe",
+    "decimal": "2.50",
+    "unit": "miles de pesos",
+    "multiplier": "1000",
+    "normalized": "2500.00",
+    "confidence": "high",
+    "usable": true
+  },
+  {
+    "id": "millones",
+    "text": "1.250 millones de pesos",
+    "type": "importe",
+    "decimal": "1.250",
+    "unit": "millones de pesos",
+    "multiplier": "1000000",
+    "normalized": "1250000.000",
+    "confidence": "high",
+    "usable": true
+  },
+  {
+    "id": "mdp",
+    "text": "3.2 mdp",
+    "type": "importe",
+    "decimal": "3.2",
+    "unit": "mdp",
+    "multiplier": "1000000",
+    "normalized": "3200000.0",
+    "confidence": "high",
+    "usable": true
+  },
+  {
+    "id": "porcentaje",
+    "text": "12.50%",
+    "type": "porcentaje",
+    "decimal": "12.50",
+    "unit": "%",
+    "multiplier": "1",
+    "normalized": "12.50",
+    "confidence": "high",
+    "usable": true
+  },
+  {
+    "id": "anio",
+    "text": "Ejercicio 2024",
+    "type": "año",
+    "decimal": "2024",
+    "unit": null,
+    "multiplier": "1",
+    "normalized": "2024",
+    "confidence": "medium",
+    "usable": false
+  },
+  {
+    "id": "fecha",
+    "text": "31/12/2024",
+    "type": "fecha",
+    "decimal": null,
+    "unit": null,
+    "multiplier": "1",
+    "normalized": null,
+    "confidence": "medium",
+    "usable": false
+  },
+  {
+    "id": "articulo",
+    "text": "artículo 33",
+    "type": "artículo",
+    "decimal": "33",
+    "unit": null,
+    "multiplier": "1",
+    "normalized": "33",
+    "confidence": "medium",
+    "usable": false
+  },
+  {
+    "id": "fraccion",
+    "text": "fracción 4",
+    "type": "fracción",
+    "decimal": "4",
+    "unit": null,
+    "multiplier": "1",
+    "normalized": "4",
+    "confidence": "medium",
+    "usable": false
+  },
+  {
+    "id": "fraccion_romana",
+    "text": "fracción IV",
+    "type": "fracción",
+    "decimal": "4",
+    "unit": null,
+    "multiplier": "1",
+    "normalized": "4",
+    "confidence": "medium",
+    "usable": false
+  },
+  {
+    "id": "folio",
+    "text": "Folio AB-001",
+    "type": "folio",
+    "decimal": null,
+    "unit": null,
+    "multiplier": "1",
+    "normalized": null,
+    "confidence": "medium",
+    "usable": false
+  },
+  {
+    "id": "auditoria",
+    "text": "Auditoría 001234",
+    "type": "numero_de_auditoria",
+    "decimal": "1234",
+    "unit": null,
+    "multiplier": "1",
+    "normalized": null,
+    "confidence": "medium",
+    "usable": false
+  },
+  {
+    "id": "cantidad",
+    "text": "15 personas",
+    "type": "cantidad",
+    "decimal": "15",
+    "unit": "personas",
+    "multiplier": "1",
+    "normalized": "15",
+    "confidence": "high",
+    "usable": true
+  },
+  {
+    "id": "columna",
+    "text": "2.50",
+    "metadata": {
+      "encabezado_columna": "Importe (miles de pesos)",
+      "column_header_unambiguous": true
+    },
+    "type": "importe",
+    "decimal": "2.50",
+    "unit": "miles de pesos",
+    "multiplier": "1000",
+    "normalized": "2500.00",
+    "confidence": "high",
+    "usable": true
+  },
+  {
+    "id": "fila",
+    "text": "2.50",
+    "metadata": {
+      "encabezado_fila": "Importe (pesos)",
+      "row_header_unambiguous": true
+    },
+    "type": "importe",
+    "decimal": "2.50",
+    "unit": "pesos",
+    "multiplier": "1",
+    "normalized": "2.50",
+    "confidence": "high",
+    "usable": true
+  },
+  {
+    "id": "titulo",
+    "text": "2.50",
+    "metadata": {
+      "unidad_tabla": "miles de pesos"
+    },
+    "type": "importe",
+    "decimal": "2.50",
+    "unit": "miles de pesos",
+    "multiplier": "1000",
+    "normalized": "2500.00",
+    "confidence": "medium",
+    "usable": false
+  },
+  {
+    "id": "sin_unidad",
+    "text": "125",
+    "type": "cantidad",
+    "decimal": "125",
+    "unit": null,
+    "multiplier": "1",
+    "normalized": "125",
+    "confidence": "low",
+    "usable": false
+  },
+  {
+    "id": "separadores_mx",
+    "text": "1,234.50 pesos",
+    "type": "importe",
+    "decimal": "1234.50",
+    "unit": "pesos",
+    "multiplier": "1",
+    "normalized": "1234.50",
+    "confidence": "high",
+    "usable": true
+  },
+  {
+    "id": "separadores_invertidos",
+    "text": "1.234,50 pesos",
+    "type": "importe",
+    "decimal": "1234.50",
+    "unit": "pesos",
+    "multiplier": "1",
+    "normalized": "1234.50",
+    "confidence": "high",
+    "usable": true
+  },
+  {
+    "id": "negativo",
+    "text": "-123.45 pesos",
+    "type": "importe",
+    "decimal": "-123.45",
+    "unit": "pesos",
+    "multiplier": "1",
+    "normalized": "-123.45",
+    "confidence": "high",
+    "usable": true
+  },
+  {
+    "id": "parentesis",
+    "text": "(123.45) pesos",
+    "type": "importe",
+    "decimal": "-123.45",
+    "unit": "pesos",
+    "multiplier": "1",
+    "normalized": "-123.45",
+    "confidence": "high",
+    "usable": true
+  },
+  {
+    "id": "precision_cero",
+    "text": "12 pesos",
+    "type": "importe",
+    "decimal": "12",
+    "unit": "pesos",
+    "multiplier": "1",
+    "normalized": "12",
+    "confidence": "high",
+    "usable": true
+  },
+  {
+    "id": "precision_uno",
+    "text": "12.3 pesos",
+    "type": "importe",
+    "decimal": "12.3",
+    "unit": "pesos",
+    "multiplier": "1",
+    "normalized": "12.3",
+    "confidence": "high",
+    "usable": true
+  },
+  {
+    "id": "precision_cuatro",
+    "text": "12.3400 pesos",
+    "type": "importe",
+    "decimal": "12.3400",
+    "unit": "pesos",
+    "multiplier": "1",
+    "normalized": "12.3400",
+    "confidence": "high",
+    "usable": true
+  },
+  {
+    "id": "no_clasificada",
+    "text": "12-14",
+    "type": "otro",
+    "decimal": null,
+    "unit": null,
+    "multiplier": "1",
+    "normalized": null,
+    "confidence": "low",
+    "usable": false
+  },
+  {
+    "id": "encabezado_dudoso",
+    "text": "10",
+    "metadata": {
+      "encabezado_columna": "pesos",
+      "column_header_unambiguous": false
+    },
+    "type": "importe",
+    "decimal": "10",
+    "unit": "pesos",
+    "multiplier": "1",
+    "normalized": "10",
+    "confidence": "medium",
+    "usable": false
+  },
+  {
+    "id": "fecha_imposible",
+    "text": "31/02/2024",
+    "type": "fecha",
+    "decimal": null,
+    "unit": null,
+    "multiplier": "1",
+    "normalized": null,
+    "confidence": "low",
+    "usable": false
+  },
+  {
+    "id": "simbolo_sin_moneda",
+    "text": "$ 10",
+    "type": "importe",
+    "decimal": "10",
+    "unit": null,
+    "multiplier": "1",
+    "normalized": "10",
+    "confidence": "low",
+    "usable": false
+  }
+]
