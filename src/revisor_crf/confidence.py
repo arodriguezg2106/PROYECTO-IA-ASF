@@ -1,6 +1,14 @@
 """Elegibilidad conservadora; no ejecuta comparaciones ni valida importes."""
 
+import re
+
 NON_MEASURES = {"año", "fecha", "artículo", "fracción", "folio", "numero_de_auditoria"}
+ARITHMETIC_HEADER = re.compile(
+    r"\b(?:importe|monto|pagad[oa]s?|ejercid[oa]s?|contratad[oa]s?|observad[oa]s?|"
+    r"subtotal|total|diferencias?|precio|costo|cantidad)\b",
+    re.I,
+)
+MISSING_UNIT_REASONS = {"cantidad_sin_unidad_explicita", "moneda_o_unidad_no_especificada"}
 EXPLANATIONS = {
     "cantidad_sin_unidad_explicita": "Cantidad sin unidad determinable.",
     "año_inferido_por_rango": "Podría ser un año; falta un rótulo inequívoco.",
@@ -62,10 +70,26 @@ def column_eligibility(numbers):
                 groups[(n["tabla"], n["columna"], view)].append(n)
     outcomes = defaultdict(list)
     for (table, column, view), values in groups.items():
-        eligible = all(n["tipo"] in {"importe", "porcentaje", "cantidad"} and n["confidence"] != "low" and
-                       isinstance(n["valor_decimal"], Decimal) and n["valor_decimal"].is_finite() and n["unidad_original"] for n in values)
-        scales = {(n.get("unidad_canonica"), str(n["multiplicador"]), n["tipo"]) for n in values}
-        eligible = eligible and len(scales) == 1
+        eligible_values = all(
+            n["tipo"] in {"importe", "porcentaje", "cantidad"}
+            and isinstance(n["valor_decimal"], Decimal)
+            and n["valor_decimal"].is_finite()
+            and n.get("revision_status") != "unknown"
+            and not (set(n.get("motivos_ambiguedad", [])) - MISSING_UNIT_REASONS)
+            for n in values
+        )
+        explicit_units = all(n.get("unidad_original") for n in values)
+        missing_units = all(not n.get("unidad_original") for n in values)
+        signatures = {(n.get("unidad_canonica"), str(n["multiplicador"]), n["tipo"]) for n in values}
+        implicit_signatures = {(str(n["multiplicador"]), n["tipo"]) for n in values}
+        monetary_column_without_unit = (
+            missing_units
+            and len(implicit_signatures) == 1
+            and all(ARITHMETIC_HEADER.search(n.get("encabezado_columna") or "") for n in values)
+        )
+        eligible = eligible_values and (
+            explicit_units and len(signatures) == 1 or monetary_column_without_unit
+        )
         for n in values:
             outcomes[id(n)].append(bool(eligible))
     for n in numbers:
@@ -74,6 +98,9 @@ def column_eligibility(numbers):
         if id(n) in outcomes:
             n["column_arithmetic_eligible"] = all(outcomes[id(n)])
             n["usable_for_arithmetic"] = n["column_arithmetic_eligible"]
-            n["arithmetic_reason"] = "Columna con Decimal válidos y unidad/escala común." if n["column_arithmetic_eligible"] else "Columna con tipos, unidades, escalas o valores no elegibles."
+            if n["column_arithmetic_eligible"] and missing_units:
+                n["arithmetic_reason"] = "Columna numérica homogénea; la operación interna no requiere inferir moneda."
+            else:
+                n["arithmetic_reason"] = "Columna con Decimal válidos y unidad/escala común." if n["column_arithmetic_eligible"] else "Columna con tipos, unidades, escalas o valores no elegibles."
         if n["tipo"] in NON_MEASURES:
             n["usable_for_arithmetic"] = False

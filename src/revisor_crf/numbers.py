@@ -233,18 +233,29 @@ def paragraph_contexts(result):
                             prior_units[view] = matches[0].group()
                 rows = item["rows"]
                 layouts = {view: layout(item, view) for view in ("final", "original")}
+                cell_texts = {
+                    view: {c["id"]: _plain_cell(c, view) for r in rows for c in r["cells"]}
+                    for view in ("final", "original")
+                }
                 for row in rows:
                     for cell in row["cells"]:
                         col = cell["grid_column"]
-                        leading = next((c for c in row["cells"] if c["grid_column"] < col), None)
+                        leading_cells = sorted(
+                            (c for c in row["cells"] if c["grid_column"] < col),
+                            key=lambda c: c["grid_column"], reverse=True,
+                        )
                         labels = {}
                         for view in ("final", "original"):
                             header_rows, title_rows, internal_units = layouts[view]
                             header_cells = [c for r in header_rows if r["index"] < row["index"] for c in r["cells"]
                                             if c["grid_column"] <= col < c["grid_column"] + c["column_span"]]
-                            header = " / ".join(_plain_cell(c, view) for c in header_cells)
-                            row_label = _plain_cell(leading, view) if leading else ""
-                            row_label = row_label if re.search(r"[A-Za-zÁÉÍÓÚáéíóúñÑ]", row_label) and not re.search(r"\d", row_label) else ""
+                            header = " / ".join(cell_texts[view][c["id"]] for c in header_cells)
+                            leading = next(
+                                (candidate for candidate in leading_cells
+                                 if re.search(r"[A-Za-zÁÉÍÓÚáéíóúñÑ]", cell_texts[view][candidate["id"]])),
+                                None,
+                            )
+                            row_label = cell_texts[view][leading["id"]] if leading else ""
                             labels[view] = {"encabezado_columna": bounded(header) or None,
                                             "encabezado_fila": bounded(row_label) or None,
                                             "encabezado_fila_id": leading["id"] if row_label else None,
@@ -280,6 +291,10 @@ def extract_numbers(result):
         coordinates = dict(coordinates)
         labels = coordinates.pop("_labels_by_view", {})
         metadata = {"elemento_id": paragraph["id"], "seccion": paragraph["section_id"],
+                    "jerarquia_encabezados": [
+                        {"id": h["id"], "nivel": h["level"], "texto": h["text"]}
+                        for h in paragraph.get("headings", [])
+                    ],
                     "origen": paragraph["source"], "tabla": None, "fila": None, "columna": None,
                     "encabezado_fila": None, "encabezado_columna": None, **coordinates}
         for text, mapping, view in text_views(paragraph, mode):

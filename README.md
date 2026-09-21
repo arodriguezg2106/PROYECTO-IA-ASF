@@ -1,12 +1,15 @@
 # Revisor de CRF
 
-Primera etapa: lector local de Word **DOCX**, sin Ollama, RAG, normativa ni inteligencia artificial. No utiliza servicios externos ni necesita internet para ejecutarse.
+Lector y motor de validaciones determinísticas para Word **DOCX**, sin Ollama, RAG, normativa ni inteligencia artificial. No utiliza servicios externos ni necesita internet para ejecutarse.
 
 ## Estructura
 
 ```text
 src/revisor_crf/
     reader.py       # Extracción estructural y exportación JSON
+    review.py       # Motor de validaciones determinísticas
+    html_report.py  # Reporte local y registro de decisiones
+    catalog.py      # Expresiones configurables de las reglas
     cli.py          # Interfaz de línea de comandos
     sample.py       # Generador de un documento totalmente sintético
     __main__.py     # Ejecución con python -m revisor_crf
@@ -48,13 +51,29 @@ No es necesario activar el entorno ni cambiar la política de ejecución de Powe
 
 Para leer otro archivo local, sustituir la ruta de entrada. La salida debe terminar en `.json`; se crean sus directorios cuando no existen. Un JSON existente en esa ruta se sobrescribe. El DOCX de entrada no se modifica. Ante una entrada inexistente o inválida, la interfaz informa el error y termina con código 1.
 
+## Motor de validaciones determinísticas
+
+```powershell
+.\.venv\Scripts\python.exe -m revisor_crf .\data\crf.docx --mode final --review -o .\results\revision.json --html .\results\revision.html --commented-docx .\results\crf_REVISION_IA.docx
+```
+
+`--review` comprueba subtotales y totales, relaciones de importes entre tabla y narrativa, y congruencia explícita entre observación y conclusión. El JSON `review-1.0` conserva operación, valores, diferencia, unidad, evidencia y una ruta humana con resultado, tabla, fila, columna y texto de búsqueda. El HTML funciona sin servidor ni recursos externos: muestra el bloque “Dónde revisar”, permite copiar la ubicación o el texto para buscar en Word, desglosa los cálculos por fila y permite filtrar, clasificar, comentar, importar y descargar decisiones humanas. Las decisiones del navegador se vinculan al SHA-256 del DOCX y nunca modifican el original.
+
+La regla de totales reconoce subtotales con nombre de fondo y construye el total general con esos subtotales, sin duplicar sus detalles. También puede comprobar una suma dentro de una misma columna homogénea cuando la moneda no está escrita, sin atribuirle una unidad inventada; las diferencias de escala, signo o unidades explícitas continúan bloqueando la operación automática.
+
+`--commented-docx` crea una copia independiente con comentarios verdaderos de Word anclados al párrafo o celda principal de cada alerta. Varias alertas de la misma ubicación se agrupan en un solo comentario. Los comentarios presentan el identificador, la ubicación, los valores y la acción sugerida; nunca corrigen el contenido ni sobrescriben el CRF original.
+
+La evaluación de una integración posterior mediante un complemento de panel lateral de Word se documenta en [`docs/evaluacion_integracion_word.md`](docs/evaluacion_integracion_word.md). La recomendación actual es validar primero las copias comentadas y conservar el complemento como una segunda fase sujeta a compatibilidad y despliegue institucional.
+
+Las etiquetas y frases pueden ajustarse con `--rules catalogo.json`. El catálogo es un objeto JSON que puede sustituir `version`, `total_labels`, `observation_positive`, `observation_negative`, `conclusion_markers` o `scope_markers`; las expresiones omitidas conservan los valores predeterminados. `--numbers` se mantiene sin cambios y no puede combinarse con `--review`.
+
 ## Ejecutar las pruebas
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-La configuración `--basetemp=.pytest_tmp` mantiene los documentos temporales dentro del proyecto; pytest limpia esa carpeta en la siguiente ejecución, por lo que debe reservarse exclusivamente para pruebas. Las pruebas generan todos sus documentos: no requieren datos reales. Verifican orden, Unicode, estilos, secciones, encabezados y pies heredados, tablas anidadas, combinaciones, trazabilidad XML, identificadores únicos y deterministas, JSON, errores y conservación del archivo original.
+Pytest utiliza `.pytest_runtime`, una carpeta temporal exclusiva para la ejecución, porque el directorio temporal global de Windows puede quedar con permisos bloqueados. Las pruebas generan todos sus documentos: no requieren datos reales. Verifican orden, Unicode, estilos, secciones, encabezados y pies heredados, tablas anidadas, combinaciones, trazabilidad XML, identificadores únicos y deterministas, JSON, errores y conservación del archivo original.
 
 ## Contrato del JSON
 

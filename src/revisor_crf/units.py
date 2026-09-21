@@ -4,6 +4,8 @@ import re
 from decimal import Decimal
 
 PATTERN = re.compile(r"(?<!\w)(millones?\s+de\s+pesos|miles\s+de\s+pesos|mdp|pesos|por\s+ciento|%|personas|obras|municipios|unidades|kg|km|litros|horas)(?!\w)", re.I)
+MEASURE_HEADER = re.compile(r"\b(?:importe|monto|pagad[oa]s?|ejercid[oa]s?|contratad[oa]s?|observad[oa]s?|subtotal|total|diferencias?|precio|costo)\b", re.I)
+NON_MEASURE_HEADER = re.compile(r"\b(?:n[uú]m(?:ero)?\.?|no\.?|contrato|folio|clave|cap[ií]tulo|partida|concepto|objeto|nombre|descripci[oó]n|fecha|a[nñ]o|ejercicio|cantidad)\b", re.I)
 
 
 def signature(unit):
@@ -36,10 +38,24 @@ def resolve(number):
     if number.get("unidad_original") and number.get("unidad_origen") in {"texto_adyacente", "texto_previo"}:
         candidates.insert(0, {"unit": number["unidad_original"], "source": "explicit" if number["unidad_origen"] == "texto_adyacente" else "previous_paragraph",
                               "element_id": number.get("elemento_id"), "unambiguous": number["unidad_origen"] == "texto_adyacente"})
+    header = number.get("encabezado_columna") or ""
+    if NON_MEASURE_HEADER.search(header) and not MEASURE_HEADER.search(header):
+        candidates = [candidate for candidate in candidates
+                      if candidate.get("source") not in {"table_title", "table_note", "previous_paragraph"}]
     number["unit_candidates"] = candidates
     candidates = [c for c in candidates if c.get("applicable", True)]
     if not candidates:
         number.update(unit_source="none", unit_unambiguous=False)
+        return number
+    # En una columna monetaria, una palabra como "unidades" dentro de la
+    # descripción de la fila no debe competir con la moneda del título.
+    if MEASURE_HEADER.search(header):
+        candidates = [candidate for candidate in candidates
+                      if candidate.get("source") != "row_header"
+                      or signature(candidate["unit"])[0] == "importe"]
+    if not candidates:
+        number.update(unit_source="none", unit_unambiguous=False,
+                      unidad_original=None, unidad_canonica=None)
         return number
     # Never assign inherited monetary units to references or identifiers.
     if number["tipo"] in {"fecha", "año", "artículo", "fracción", "folio", "numero_de_auditoria", "otro"}:
