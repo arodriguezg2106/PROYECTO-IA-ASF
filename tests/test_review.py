@@ -173,6 +173,46 @@ def test_equal_table_narrative_value_produces_no_alert(tmp_path):
     assert report["coverage"]["NUM-CROSS-001"]["evaluated"] == 1
 
 
+def test_table_narrative_keeps_fund_names_in_their_own_clause(tmp_path):
+    def build(document):
+        document.add_heading("Resultado 1", level=1)
+        document.add_paragraph(
+            "Las operaciones seleccionadas fueron por 180 pesos, de las cuales, "
+            "147 pesos corresponden al Fondo de Aportaciones para el Fortalecimiento "
+            "de los Municipios (FORTAMUN); 33 pesos al Fondo de Aportaciones para la "
+            "Infraestructura Social Municipal (FAISMUN)."
+        )
+        table = document.add_table(rows=1, cols=3)
+        table.rows[0].cells[0].text = "Concepto"
+        table.rows[0].cells[1].text = "Importe Presupuestal"
+        table.rows[0].cells[2].text = "Total Pagado"
+        fortamun = table.add_row().cells
+        fortamun[0].text = "Subtotal FORTAMUN"
+        fortamun[1].text = "147 pesos"
+        fortamun[2].text = "147 pesos"
+        faismun = table.add_row().cells
+        faismun[0].text = "Subtotal FAISMUN"
+        faismun[1].text = "33 pesos"
+        faismun[2].text = "32 pesos"
+
+    report = review_document(save_document(tmp_path, build))
+    assert alerts(report, "NUM-CROSS-001") == []
+
+
+def test_specific_monetary_column_requires_same_measure_in_narrative(tmp_path):
+    def build(document):
+        document.add_heading("Resultado 1", level=1)
+        table = document.add_table(rows=1, cols=2)
+        table.rows[0].cells[0].text = "Concepto"
+        table.rows[0].cells[1].text = "Total Pagado"
+        detail = table.add_row().cells
+        detail[0].text = "Obra Alfa"
+        detail[1].text = "100 pesos"
+        document.add_paragraph("La Obra Alfa tuvo un importe presupuestal de 120 pesos.")
+
+    assert alerts(review_document(save_document(tmp_path, build)), "NUM-CROSS-001") == []
+
+
 def test_table_narrative_does_not_cross_explicit_result_numbers(tmp_path):
     def build(document):
         document.add_paragraph("NÚM. DEL RESULTADO: 2 CON OBSERVACIÓN SÍ ( ) NO ( X )")
@@ -298,7 +338,7 @@ def test_html_is_offline_escaped_and_contains_decision_workflow(tmp_path):
         ("<script>alert(1)</script>", "10 pesos"), ("Obra", "20 pesos"), ("Total", "40 pesos")]))
     html = render_html(review_document(path))
     assert "http://" not in html and "https://" not in html
-    assert "review-decisions-1.0" in html
+    assert "review-decisions-1.1" in html
     assert "localStorage" in html and "Importar decisiones" in html
     assert "Dónde revisar" in html and "Copiar ubicación" in html
     assert "Copiar texto para buscar" in html and "Qué debe verificar" in html
@@ -346,7 +386,7 @@ def test_cli_review_outputs_serializable_json_and_html(tmp_path):
     assert main([str(path), "--review", "-o", str(output), "--html", str(html),
                  "--commented-docx", str(commented)]) == 0
     payload = json.loads(output.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == "review-1.0"
+    assert payload["schema_version"] == "review-1.1"
     assert payload["source"]["unchanged"] is True
     assert payload["commented_copy"]["comments_added"] == 1
     assert html.read_text(encoding="utf-8").startswith("<!doctype html>")
@@ -362,3 +402,6 @@ def test_custom_catalog_and_invalid_cli_combinations(tmp_path):
     assert alerts(report, "NUM-TOTAL-001")
     assert report["engine"]["catalog_version"] == "test"
     assert main([str(path), "--numbers", "--review", "-o", str(tmp_path / "bad.json")]) == 1
+    assert main([str(path), "--semantic-review", "-o", str(tmp_path / "bad-semantic.json")]) == 1
+    assert main([str(path), "--review", "--semantic-config", str(catalog),
+                 "-o", str(tmp_path / "bad-config.json")]) == 1

@@ -64,6 +64,17 @@ def test_conflicting_explicit_and_inherited_units():
     assert len(n["unit_candidates"]) == 2
 
 
+def test_uma_is_not_inherited_as_pesos():
+    n, = detect_numbers("25,360 UMA", {
+        "table_unit_candidates": [
+            {"unit": "pesos", "source": "table_title", "element_id": "title", "unambiguous": True}
+        ]
+    })
+    assert n["classification"] == "ambiguous" and n["confidence"] == "low"
+    assert n["valor_normalizado"] is None
+    assert {candidate["unit"].lower() for candidate in n["unit_candidates"]} == {"uma", "pesos"}
+
+
 def test_title_note_previous_paragraph_inheritance(tmp_path):
     for before, after, source, confidence in (("Tabla sintética: miles de pesos", "", "table_title", "high"),
                                             ("", "Nota: miles de pesos", "table_note", "medium"),

@@ -7,12 +7,15 @@ from .reader import export_json, read_docx
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Extrae o revisa determinísticamente un DOCX CRF.")
+    parser = argparse.ArgumentParser(description="Extrae o revisa un DOCX CRF con reglas y semántica local opcional.")
     parser.add_argument("input", help="Documento DOCX de entrada")
     parser.add_argument("-o", "--output", required=True, help="Archivo JSON de salida")
     parser.add_argument("--mode", choices=("final", "original", "all"), default="final")
     parser.add_argument("--numbers", action="store_true", help="Exporta solo el inventario numérico y sus metadatos")
     parser.add_argument("--review", action="store_true", help="Ejecuta el motor de validaciones determinísticas")
+    parser.add_argument("--semantic-review", action="store_true",
+                        help="Añade asociación semántica local de alta precisión (requiere --review)")
+    parser.add_argument("--semantic-config", help="Configuración JSON o TOML de la revisión semántica")
     parser.add_argument("--html", help="Reporte HTML autónomo (solo con --review)")
     parser.add_argument("--commented-docx", help="Copia DOCX con comentarios de orientación (solo con --review)")
     parser.add_argument("--rules", help="Catálogo JSON opcional de expresiones (solo con --review)")
@@ -26,10 +29,17 @@ def main(argv=None):
             raise ValueError("--rules requiere --review.")
         if args.commented_docx and not args.review:
             raise ValueError("--commented-docx requiere --review.")
+        if args.semantic_review and not args.review:
+            raise ValueError("--semantic-review requiere --review.")
+        if args.semantic_config and not args.semantic_review:
+            raise ValueError("--semantic-config requiere --semantic-review.")
         if args.review:
             from .html_report import export_html
             from .review import review_document
-            result = review_document(args.input, mode=args.mode, catalog_path=args.rules)
+            result = review_document(
+                args.input, mode=args.mode, catalog_path=args.rules,
+                semantic=args.semantic_review, semantic_config_path=args.semantic_config,
+            )
             if args.commented_docx:
                 from .commented_docx import export_commented_docx
                 result["commented_copy"] = export_commented_docx(

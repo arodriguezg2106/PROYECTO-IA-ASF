@@ -59,6 +59,15 @@ def test_numeric_notations(raw, expected):
     assert decimal_value(raw)[0] == Decimal(expected)
 
 
+def test_footnote_marker_is_not_appended_to_money_decimal():
+    n, = detect_numbers("28,530.722/", {
+        "encabezado_columna": "Diferencias (pesos)",
+        "column_header_unambiguous": True,
+    })
+    assert n["texto_original"] == "28,530.72"
+    assert n["valor_decimal"] == Decimal("28530.72")
+
+
 def test_ambiguous_and_unclassified():
     n, = detect_numbers("123")
     assert n["tipo"] == "cantidad" and n["ambigua"]

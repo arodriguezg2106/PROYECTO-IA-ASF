@@ -1,6 +1,6 @@
 # Revisor de CRF
 
-Lector y motor de validaciones determinísticas para Word **DOCX**, sin Ollama, RAG, normativa ni inteligencia artificial. No utiliza servicios externos ni necesita internet para ejecutarse.
+Lector y motor híbrido local para Word **DOCX**. Las reglas determinísticas funcionan sin servicios externos; opcionalmente, una capa semántica mediante Ollama relaciona cifras narrativas con conceptos y columnas de tablas sin enviar documentos a internet.
 
 ## Estructura
 
@@ -8,6 +8,8 @@ Lector y motor de validaciones determinísticas para Word **DOCX**, sin Ollama, 
 src/revisor_crf/
     reader.py       # Extracción estructural y exportación JSON
     review.py       # Motor de validaciones determinísticas
+    semantic.py     # Contratos, proveedor local, doble verificación y caché
+    semantic_service.py # Fachada institucional con autenticación, TLS y cola
     html_report.py  # Reporte local y registro de decisiones
     catalog.py      # Expresiones configurables de las reglas
     cli.py          # Interfaz de línea de comandos
@@ -27,7 +29,7 @@ Requiere Python 3.11 o posterior. Ejecutar los comandos desde la raíz del proye
 ```powershell
 python -m venv --system-site-packages .venv
 .\.venv\Scripts\python.exe -m pip install --no-index -r requirements.txt
-$env:PYTHONPATH = (Join-Path (Get-Location) 'src')
+.\.venv\Scripts\python.exe -m pip install --no-index --no-build-isolation -e .
 ```
 
 Este entorno virtual aprovecha los paquetes de la instalación local de Python; **no está completamente aislado**. `--no-index` impide consultar índices de paquetes. Si faltan las versiones indicadas, la instalación falla: no intenta descargarlas.
@@ -37,10 +39,10 @@ Para una instalación aislada y sin internet en otro equipo, colocar previamente
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --no-index --find-links .\vendor\wheels -r requirements.txt
-$env:PYTHONPATH = (Join-Path (Get-Location) 'src')
+.\.venv\Scripts\python.exe -m pip install --no-index --no-build-isolation -e .
 ```
 
-No es necesario activar el entorno ni cambiar la política de ejecución de PowerShell. Repetir la asignación de `PYTHONPATH` al abrir una nueva terminal. El código funciona directamente desde `src`, sin instalar el proyecto ni descargar herramientas de construcción.
+No es necesario activar el entorno, cambiar la política de ejecución de PowerShell ni definir `PYTHONPATH`. La instalación editable mantiene el comando conectado al código de `src`.
 
 ## Generar y leer el ejemplo sintético
 
@@ -57,7 +59,18 @@ Para leer otro archivo local, sustituir la ruta de entrada. La salida debe termi
 .\.venv\Scripts\python.exe -m revisor_crf .\data\crf.docx --mode final --review -o .\results\revision.json --html .\results\revision.html --commented-docx .\results\crf_REVISION_IA.docx
 ```
 
-`--review` comprueba subtotales y totales, relaciones de importes entre tabla y narrativa, y congruencia explícita entre observación y conclusión. El JSON `review-1.0` conserva operación, valores, diferencia, unidad, evidencia y una ruta humana con resultado, tabla, fila, columna y texto de búsqueda. El HTML funciona sin servidor ni recursos externos: muestra el bloque “Dónde revisar”, permite copiar la ubicación o el texto para buscar en Word, desglosa los cálculos por fila y permite filtrar, clasificar, comentar, importar y descargar decisiones humanas. Las decisiones del navegador se vinculan al SHA-256 del DOCX y nunca modifican el original.
+`--review` comprueba subtotales y totales, relaciones de importes entre tabla y narrativa, y congruencia explícita entre observación y conclusión. El JSON `review-1.1` conserva operación, valores, diferencia, unidad, evidencia, origen determinístico o híbrido y una ruta humana con resultado, tabla, fila, columna y texto de búsqueda. El HTML funciona sin servidor ni recursos externos: muestra el bloque “Dónde revisar”, permite copiar la ubicación o el texto para buscar en Word, desglosa los cálculos por fila y permite filtrar, clasificar, comentar, importar y descargar decisiones humanas. Las decisiones del navegador se vinculan al SHA-256 del DOCX y nunca modifican el original.
+
+## Revisión semántica local
+
+La revisión semántica es opcional. Requiere Ollama instalado, uno de los modelos aprobados descargado localmente y una copia de `semantic-config.example.toml` ajustada al equipo. El modelo propone relaciones; únicamente las reglas del programa calculan diferencias y crean alertas. Las relaciones dudosas aparecen en el HTML y nunca se agregan como comentarios de Word.
+
+```powershell
+ollama pull qwen3.5:4b
+.\.venv\Scripts\python.exe -m revisor_crf .\data\crf.docx --review --semantic-review --semantic-config .\semantic-config.example.toml -o .\results\revision.json --html .\results\revision.html --commented-docx .\results\crf_REVISION_IA.docx
+```
+
+Si Ollama no responde, el comando termina la revisión determinística, registra una advertencia y genera los archivos solicitados. La caché SQLite usa el hash del documento, caso, modelo, prompt y esquema; no guarda documentos completos. La instalación institucional, el dataset aprobado y la selección reproducible del modelo se describen en [`docs/revision_semantica.md`](docs/revision_semantica.md).
 
 La regla de totales reconoce subtotales con nombre de fondo y construye el total general con esos subtotales, sin duplicar sus detalles. También puede comprobar una suma dentro de una misma columna homogénea cuando la moneda no está escrita, sin atribuirle una unidad inventada; las diferencias de escala, signo o unidades explícitas continúan bloqueando la operación automática.
 

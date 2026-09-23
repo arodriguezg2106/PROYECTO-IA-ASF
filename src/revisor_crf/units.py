@@ -3,7 +3,7 @@
 import re
 from decimal import Decimal
 
-PATTERN = re.compile(r"(?<!\w)(millones?\s+de\s+pesos|miles\s+de\s+pesos|mdp|pesos|por\s+ciento|%|personas|obras|municipios|unidades|kg|km|litros|horas)(?!\w)", re.I)
+PATTERN = re.compile(r"(?<!\w)(millones?\s+de\s+pesos|miles\s+de\s+pesos|mdp|pesos|por\s+ciento|%|personas|obras|municipios|unidades|UMA|kg|km|litros|horas)(?!\w)", re.I)
 MEASURE_HEADER = re.compile(r"\b(?:importe|monto|pagad[oa]s?|ejercid[oa]s?|contratad[oa]s?|observad[oa]s?|subtotal|total|diferencias?|precio|costo)\b", re.I)
 NON_MEASURE_HEADER = re.compile(r"\b(?:n[uú]m(?:ero)?\.?|no\.?|contrato|folio|clave|cap[ií]tulo|partida|concepto|objeto|nombre|descripci[oó]n|fecha|a[nñ]o|ejercicio|cantidad)\b", re.I)
 

@@ -1,0 +1,12 @@
+[semantic]
+profile = "local"
+provider = "ollama"
+base_url = "http://localhost:11434/api"
+model = "qwen3.5:4b"
+timeout_seconds = 120
+batch_size = 4
+max_candidates_per_table_value = 6
+confidence_threshold = 0.95
+cache_path = "results/semantic_cache.sqlite3"
+max_suggestions = 200
+# expected_model_digest = "sha256-del-modelo-aprobado"

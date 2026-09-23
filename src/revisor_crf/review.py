@@ -15,10 +15,11 @@ from .numbers import extract_numbers, paragraph_contexts
 from .reader import read_docx
 from .revisions import text_views
 
-ENGINE_VERSION = "0.4.1"
+ENGINE_VERSION = "0.5.0"
 RULE_VERSIONS = {
     "NUM-TOTAL-001": "1.1",
-    "NUM-CROSS-001": "1.1",
+    "NUM-CROSS-001": "1.2",
+    "NUM-CROSS-ML-001": "1.0",
     "DOC-OBS-001": "1.0",
     "DATA-NEG-001": "1.0",
 }
@@ -30,6 +31,15 @@ MONETARY_HEADER = re.compile(
     r"\b(?:importe|monto|pagad[oa]s?|ejercid[oa]s?|contratad[oa]s?|observad[oa]s?|subtotal|total|precio|costo)\b",
     re.I,
 )
+MONETARY_MEASURES = {
+    "presupuesto": re.compile(r"\bpresupuest(?:o|al|ado|ada)s?\b", re.I),
+    "pagado": re.compile(r"\bpagad[oa]s?\b", re.I),
+    "ejercido": re.compile(r"\bejercid[oa]s?\b", re.I),
+    "contratado": re.compile(r"\bcontratad[oa]s?\b", re.I),
+    "observado": re.compile(r"\bobservad[oa]s?\b", re.I),
+    "precio": re.compile(r"\bprecio\b", re.I),
+    "costo": re.compile(r"\bcosto\b", re.I),
+}
 RESULT_NUMBER = re.compile(r"\bn[uú]m\.?\s+del\s+resultado\s*:\s*(?P<number>\d+)", re.I)
 RESULT_CHECKBOX = re.compile(
     r"\bn[uú]m\.?\s+del\s+resultado\s*:\s*(?P<number>\d+).*?"
@@ -146,6 +156,7 @@ def _verification_instruction(rule_id: str, operation: dict) -> str:
     return {
         "NUM-TOTAL-001": "Verifique que las filas mostradas sean exactamente las que integran el subtotal o total.",
         "NUM-CROSS-001": "Confirme que ambas cifras correspondan al mismo concepto, contrato, resultado y unidad.",
+        "NUM-CROSS-ML-001": "Confirme la relación semántica, el tipo de importe y la evidencia antes de decidir.",
         "DOC-OBS-001": "Revise la casilla SÍ/NO del resultado y la conclusión explícita asociada.",
         "DATA-NEG-001": "Confirme si el guion o paréntesis representa un valor negativo o solo formato documental.",
     }[rule_id]
@@ -181,7 +192,8 @@ def _decorate_numbers(numbers: list[dict], navigation: dict) -> None:
 
 
 def _alert(rule_id: str, category: str, severity: str, message: str, operation: dict,
-           evidence: list[dict], confidence: str, mode: str, *, reason: str | None = None) -> dict:
+           evidence: list[dict], confidence: str, mode: str, *, reason: str | None = None,
+           origin: str = "deterministic", semantic: dict | None = None) -> dict:
     if not evidence:
         raise ValueError("Una alerta requiere evidencia localizable.")
     fingerprint = "|".join([
@@ -206,14 +218,30 @@ def _alert(rule_id: str, category: str, severity: str, message: str, operation: 
         "where_to_review": _human_locator(evidence),
         "review_instruction": _verification_instruction(rule_id, operation),
         "confidence": confidence,
+        "origin": origin,
         "reading_mode": mode,
         "not_evaluable_reason": reason,
         "reviewer": {"status": "pending", "comment": ""},
+        **({"semantic": semantic} if semantic else {}),
     }
 
 
 def _unit_signature(number: dict) -> tuple:
     return (number.get("tipo"), number.get("unidad_canonica"), str(number.get("multiplicador")))
+
+
+def _measure_signature(value: str | None) -> set[str]:
+    return {name for name, pattern in MONETARY_MEASURES.items() if pattern.search(value or "")}
+
+
+def _compatible_measure(table_number: dict, text_number: dict) -> bool:
+    """Exige la misma magnitud cuando la columna usa un concepto monetario específico."""
+    table_measures = _measure_signature(table_number.get("encabezado_columna"))
+    if not table_measures:
+        return True
+    narrative_measures = _measure_signature(text_number.get("contexto_asociacion")
+                                            or text_number.get("contexto_inmediato"))
+    return bool(table_measures & narrative_measures)
 
 
 def _view_key(number: dict) -> str:
@@ -398,7 +426,8 @@ def _cross_reference_rule(numbers: list[dict], catalog: dict, mode: str) -> tupl
         candidates, near_candidates = [], []
         for text_number in narrative:
             other_scope = _scope_from_headings(text_number.get("jerarquia_encabezados", []), text_number.get("seccion"), scope_patterns)
-            context_tokens = _tokens(text_number.get("contexto_inmediato"))
+            context_tokens = _tokens(text_number.get("contexto_asociacion")
+                                     or text_number.get("contexto_inmediato"))
             overlap = len(concept & context_tokens) / len(concept)
             same_result = (
                 not table_number.get("resultado")
@@ -406,7 +435,8 @@ def _cross_reference_rule(numbers: list[dict], catalog: dict, mode: str) -> tupl
                 or table_number["resultado"] == text_number["resultado"]
             )
             if (same_result and scope == other_scope
-                    and _view_key(table_number) == _view_key(text_number) and overlap >= 0.6):
+                    and _view_key(table_number) == _view_key(text_number) and overlap >= 0.6
+                    and _compatible_measure(table_number, text_number)):
                 near_candidates.append(text_number)
                 if (_unit_signature(table_number) == _unit_signature(text_number)
                         and text_number.get("confidence") != "low"
@@ -533,7 +563,9 @@ def _observation_rule(document: dict, catalog: dict, mode: str,
     return alerts, {"evaluated": evaluated, "excluded": excluded}
 
 
-def review_document(path: str | Path, mode: str = "final", catalog_path: str | Path | None = None) -> dict:
+def review_document(path: str | Path, mode: str = "final", catalog_path: str | Path | None = None,
+                    *, semantic: bool = False, semantic_config_path: str | Path | None = None,
+                    semantic_provider=None) -> dict:
     """Ejecuta las tres reglas sobre un DOCX sin modificarlo."""
     source = Path(path)
     before_hash = hashlib.sha256(source.read_bytes()).hexdigest()
@@ -556,14 +588,68 @@ def review_document(path: str | Path, mode: str = "final", catalog_path: str | P
     found, stats = _observation_rule(document, catalog, mode, navigation)
     alerts.extend(found)
     coverage["DOC-OBS-001"] = {**stats, "alerts": len(found)}
+    semantic_report = None
+    if semantic:
+        from .semantic import SemanticConfig, run_semantic_review, serializable_semantic_run
+
+        semantic_config = SemanticConfig.load(semantic_config_path)
+        semantic_run = run_semantic_review(
+            evaluation_numbers, before_hash, semantic_config, semantic_provider
+        )
+        semantic_alerts = []
+        deterministic_pairs = {
+            tuple(item.get("cifra_id") for item in alert.get("evidence", [])[:2])
+            for alert in alerts if alert.get("rule_id") == "NUM-CROSS-001"
+        }
+        for accepted in semantic_run.get("accepted_relations", []):
+            case = accepted["case"]
+            table_number = case["_table_number"]
+            narrative_number = case["_narrative_number"]
+            pair = (table_number["id"], narrative_number["id"])
+            if pair in deterministic_pairs:
+                continue
+            table_value = table_number["valor_normalizado"]
+            narrative_value = narrative_number["valor_normalizado"]
+            semantic_alerts.append(_alert(
+                "NUM-CROSS-ML-001", "semantic_cross_reference", "high",
+                "La relación semántica confirmada presenta importes distintos para el mismo concepto y tipo de importe.",
+                {"type": "comparison", "declarado": table_value, "calculado": narrative_value,
+                 "diferencia": table_value - narrative_value,
+                 "unidad": table_number.get("unidad_canonica"),
+                 "escala": table_number.get("multiplicador")},
+                [_number_evidence(table_number, "cifra_tabular"),
+                 _number_evidence(narrative_number, "cifra_narrativa")],
+                "high", mode, origin="hybrid",
+                semantic={
+                    "case_id": case["case_id"], "confidence": accepted["confidence"],
+                    "association": accepted["association"],
+                    "verification": accepted["verification"],
+                },
+            ))
+        alerts.extend(semantic_alerts)
+        coverage["NUM-CROSS-ML-001"] = {
+            "evaluated": semantic_run.get("association_decisions", 0),
+            "excluded": max(0, semantic_run.get("candidate_cases", 0)
+                            - semantic_run.get("association_decisions", 0)),
+            "alerts": len(semantic_alerts),
+        }
+        semantic_report = serializable_semantic_run(semantic_run)
     after_hash = hashlib.sha256(source.read_bytes()).hexdigest()
     if before_hash != after_hash:
         raise RuntimeError("El archivo de entrada cambió durante la revisión.")
     alerts.sort(key=lambda item: (item["rule_id"], item["id"]))
+    warnings = list(document["warnings"])
+    if semantic_report and semantic_report.get("status") != "complete":
+        warnings.append({
+            "element": "semantic_review", "id": None,
+            "message": "La revisión semántica no estuvo disponible; se conservó la revisión determinística.",
+            "code": semantic_report.get("error_code"),
+        })
     return {
-        "schema_version": "review-1.0",
+        "schema_version": "review-1.1",
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "engine": {"name": "revisor-crf-deterministic", "version": ENGINE_VERSION,
+        "engine": {"name": "revisor-crf-hybrid" if semantic else "revisor-crf-deterministic",
+                   "version": ENGINE_VERSION,
                    "catalog_version": catalog["version"], "rule_versions": RULE_VERSIONS},
         "source": {**document["source"], "sha256": before_hash, "unchanged": True},
         "reading_mode": mode,
@@ -578,5 +664,6 @@ def review_document(path: str | Path, mode: str = "final", catalog_path: str | P
             "evaluated": sum(item["evaluated"] for item in coverage.values()),
             "excluded": sum(item["excluded"] for item in coverage.values()),
         },
-        "warnings": document["warnings"],
+        **({"semantic_review": semantic_report} if semantic_report else {}),
+        "warnings": warnings,
     }

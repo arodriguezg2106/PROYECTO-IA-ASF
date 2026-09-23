@@ -16,15 +16,15 @@ DATE = r"(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{1,2}\s+de\s+(?:
 COMPOUND = r"(?:[A-Za-z0-9]+(?:[-/][A-Za-z0-9]+)+|(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Za-z])[A-Za-z0-9]+)"
 NUMBER = r"[+−-]?\d+(?:[.,]\d+|[ \u00a0\u202f]\d{3}(?!\d))*"
 TOKEN = re.compile(r"(?P<fraction>\bfracci[oó]n\s+[IVXLCDM]+\b)|(?<!\w)(?P<date>" + DATE + r")(?!\w)|(?<!\w)(?P<compound>" + COMPOUND + r")(?!\w)|(?<!\w)(?P<number>" + NUMBER + r")(?!\w)", re.I)
-UNIT = re.compile(r"(?<!\w)(?:millones?\s+de\s+pesos|miles\s+de\s+pesos|mdp|pesos|por\s+ciento|%)(?!\w)", re.I)
-UNIT_AFTER = re.compile(r"\s*(?P<unit>millones?\s+de\s+pesos|miles\s+de\s+pesos|mdp|pesos|por\s+ciento|%)(?!\w)", re.I)
+UNIT = re.compile(r"(?<!\w)(?:millones?\s+de\s+pesos|miles\s+de\s+pesos|mdp|pesos|por\s+ciento|%|UMA)(?!\w)", re.I)
+UNIT_AFTER = re.compile(r"\s*(?P<unit>millones?\s+de\s+pesos|miles\s+de\s+pesos|mdp|pesos|por\s+ciento|%|UMA)(?!\w)", re.I)
 MONEY_PREFIX = re.compile(r"(?P<symbol>MX\$|US\$|MXN|USD|\$|€|£)\s*$", re.I)
 IDENTIFIER = re.compile(r"\b(?P<kind>folios?|auditor[ií]as?|expedientes?|contratos?)\s*(?:(?:n[uú]m(?:ero)?|no)\.?\s*)?[:#-]?\s*$", re.I)
 AUDIT_HEADER = re.compile(r"\s*(?:(?:n[uú]mero|n[uú]m\.?|no\.?)\s*(?:de\s+)?)?auditor[ií]a\s*[:#]?\s*", re.I)
 ARTICLE = re.compile(r"\b(?:art[ií]culos?|arts?\.?)\s*(?:\d+\s*[,y]\s*)*$", re.I)
 YEAR_HINT = re.compile(r"\b(?:año|ejercicio|ejercicio fiscal|cuenta p[uú]blica)\s*[:]?\s*$", re.I)
 COUNT_HINT = re.compile(r"\b(?:cantidad|n[uú]mero de|total de)\b", re.I)
-COUNT_AFTER = re.compile(r"\s*(?P<unit>personas|obras|acciones|municipios|contratos|beneficiarios|empleados|habitantes|unidades|documentos|kg|km|m²|m2|litros|horas)(?!\w)", re.I)
+COUNT_AFTER = re.compile(r"\s*(?P<unit>personas|obras|acciones|municipios|contratos|beneficiarios|empleados|habitantes|unidades|documentos|UMA|kg|km|m²|m2|litros|horas)(?!\w)", re.I)
 
 
 def decimal_value(raw):
@@ -67,6 +67,20 @@ def bounded(text, length=80):
     return " ".join(text.split())[:length]
 
 
+def association_context(text, start, end, length=500):
+    """Devuelve la cláusula que contiene la cifra para relacionarla con conceptos.
+
+    El contexto corto de presentación puede incluir el final de la cláusula anterior.
+    Los límites fuertes evitan, por ejemplo, atribuir a FAISMUN una cifra que aparece
+    después del punto y coma que cierra la mención de FORTAMUN.
+    """
+    left = max(text.rfind(";", 0, start), text.rfind("\n", 0, start)) + 1
+    right_candidates = [position for delimiter in (";", "\n")
+                        if (position := text.find(delimiter, end)) >= 0]
+    right = min(right_candidates) if right_candidates else len(text)
+    return bounded(text[left:right], length)
+
+
 def detect_numbers(text, metadata=None):
     """Detecta candidatos en una sola vista. Los valores monetarios son Decimal."""
     metadata = metadata or {}
@@ -76,6 +90,12 @@ def detect_numbers(text, metadata=None):
         if not any(c.isdigit() for c in raw) and match.lastgroup != "fraction":
             continue
         start, end = match.span()
+        # Word suele concatenar llamadas de nota al pie (por ejemplo, 28,530.72 + 2/)
+        # con la cifra visible. No se incorpora el dígito de la llamada al decimal.
+        if (match.lastgroup == "number" and end < len(text) and text[end] == "/"
+                and re.fullmatch(r"[+−-]?\d{1,3}(?:,\d{3})+\.\d{3}", raw)):
+            raw = raw[:-1]
+            end -= 1
         prefix, suffix = text[max(0, start - 55):start], text[end:end + 45]
         identifier = IDENTIFIER.search(prefix)
         audit_header = AUDIT_HEADER.fullmatch(metadata.get("encabezado_columna") or "")
@@ -192,6 +212,7 @@ def detect_numbers(text, metadata=None):
             "unidad_original": unit, "multiplicador": multiplier, "valor_normalizado": normalized,
             "simbolo_monetario": symbol, "unidad_origen": unit_source, "fecha_iso": iso_date,
             "contexto_inmediato": bounded(text[max(0, start - 32):min(len(text), end + 32)], 150),
+            "contexto_asociacion": association_context(text, start, end),
             "ambigua": bool(problems), "motivos_ambiguedad": problems, "no_clasificada": kind == "otro",
             "inicio": start, "fin": end, "inicio_numero": numeric_start, "fin_numero": numeric_end,
             **metadata,

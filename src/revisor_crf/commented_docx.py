@@ -35,11 +35,17 @@ def _value(value) -> str:
 def _comment_lines(alert: dict) -> list[str]:
     operation = alert.get("operation", {})
     location = alert.get("where_to_review", {})
+    origin = "híbrido" if alert.get("origin") == "hybrid" else "determinístico"
     lines = [
-        f"IA-ASF · Posible hallazgo ({alert['id']})",
+        f"IA-ASF · Posible hallazgo {origin} ({alert['id']})",
         alert["message"],
         f"Dónde revisar: {location.get('ruta') or 'consulte la evidencia del reporte'}",
     ]
+    if alert.get("semantic"):
+        lines.append(
+            f"Relación semántica: caso {alert['semantic'].get('case_id')}; "
+            f"confianza {alert['semantic'].get('confidence')}."
+        )
     if operation.get("type") not in {"manual_review", "not_evaluable"}:
         lines.append(
             "Valores: declarado {declared}; calculado/relacionado {calculated}; diferencia {difference}; "
