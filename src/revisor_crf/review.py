@@ -565,7 +565,13 @@ def _observation_rule(document: dict, catalog: dict, mode: str,
 
 def review_document(path: str | Path, mode: str = "final", catalog_path: str | Path | None = None,
                     *, semantic: bool = False, semantic_config_path: str | Path | None = None,
-                    semantic_provider=None) -> dict:
+                    semantic_provider=None, editorial: bool = False,
+                    editorial_config_path: str | Path | None = None, editorial_provider=None,
+                    editorial_ollama: bool = False,
+                    editorial_experimental_model: bool = False,
+                    editorial_language_tool: bool = False,
+                    editorial_experimental_provider: bool = False,
+                    language_tool_provider=None, editorial_config_override=None) -> dict:
     """Ejecuta las tres reglas sobre un DOCX sin modificarlo."""
     source = Path(path)
     before_hash = hashlib.sha256(source.read_bytes()).hexdigest()
@@ -634,6 +640,24 @@ def review_document(path: str | Path, mode: str = "final", catalog_path: str | P
             "alerts": len(semantic_alerts),
         }
         semantic_report = serializable_semantic_run(semantic_run)
+    editorial_report = None
+    if editorial:
+        from .editorial import EditorialConfig, review_editorial
+        editorial_config = editorial_config_override or EditorialConfig.load(editorial_config_path)
+        if editorial_ollama:
+            from dataclasses import replace
+            editorial_config = replace(editorial_config, ollama_enabled=True,
+                                       experimental_model=editorial_experimental_model)
+        if editorial_language_tool:
+            from dataclasses import replace
+            editorial_config = replace(editorial_config, language_tool_enabled=True,
+                                       language_tool_experimental=editorial_experimental_provider)
+            if not editorial_config.language_tool_experimental:
+                raise ValueError("LanguageTool requiere --editorial-experimental-provider.")
+        if editorial_config.enabled:
+            editorial_report = review_editorial(source, document, editorial_config, provider=editorial_provider,
+                                                inventory=inventory,
+                                                language_tool_provider=language_tool_provider)
     after_hash = hashlib.sha256(source.read_bytes()).hexdigest()
     if before_hash != after_hash:
         raise RuntimeError("El archivo de entrada cambió durante la revisión.")
@@ -665,5 +689,6 @@ def review_document(path: str | Path, mode: str = "final", catalog_path: str | P
             "excluded": sum(item["excluded"] for item in coverage.values()),
         },
         **({"semantic_review": semantic_report} if semantic_report else {}),
+        **({"editorial_review": editorial_report} if editorial_report else {}),
         "warnings": warnings,
     }

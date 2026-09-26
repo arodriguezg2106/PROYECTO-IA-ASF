@@ -82,6 +82,78 @@ Las etiquetas y frases pueden ajustarse con `--rules catalogo.json`. El catálog
 
 ## Ejecutar las pruebas
 
+## Revisión editorial ASF (cobertura inicial)
+
+El módulo editorial es opcional, no modifica el DOCX y funciona sin Ollama. Usa el catálogo versionado `2IN2RE01-02-2025-partial-1`, derivado del PDF institucional local. El modo recomendado y predeterminado es `final`.
+
+```powershell
+.\.venv\Scripts\python.exe -m revisor_crf .\data\crf.docx --mode final --review --editorial-review -o .\results\revision.json --html .\results\revision.html --markdown .\results\revision.md
+```
+
+Para activar la revisión contextual local, copie y ajuste `editorial-config.example.toml` y agregue `--editorial-ollama --editorial-config .\editorial-config.toml`. Para desactivarla, omita `--editorial-ollama` o mantenga `ollama_enabled = false`. Los fallos de Ollama se registran por fragmento y no interrumpen las reglas deterministas.
+
+Un modelo sólo puede activarse normalmente si figura como `approved` en el registro versionado. Para una evaluación controlada de un modelo no aprobado debe agregarse `--editorial-experimental-model`; todas sus propuestas requieren revisión humana y esta opción no equivale a una aprobación.
+
+### LanguageTool local experimental
+
+LanguageTool puede complementar las reglas ASF con sugerencias gramaticales locales. La integración no consulta la API pública: sólo admite `http://localhost`, `127.0.0.1` o `::1`, permanece desactivada por defecto y no incorpora sus resultados como errores confirmados. La instancia autónoma debe iniciarse por separado en el puerto configurado; el ejemplo supone `http://127.0.0.1:8081/v2`.
+
+En el equipo de desarrollo, Java 17 y LanguageTool están instalados en paralelo con Java 8. El servidor se controla sin ventanas visibles y no se inicia automáticamente con Windows:
+
+```powershell
+.\scripts\start_languagetool.ps1
+.\scripts\stop_languagetool.ps1
+```
+
+```powershell
+.\.venv\Scripts\python.exe -m revisor_crf .\data\crf.docx --mode final --review --editorial-review --editorial-language-tool --editorial-experimental-provider -o .\results\revision.json --html .\results\revision.html --markdown .\results\revision.md
+```
+
+Las categorías y reglas admitidas pueden limitarse mediante `language_tool_categories` y `language_tool_rule_ids` en `editorial-config.example.toml`. Se usa el código `es` porque LanguageTool 6.6 no ofrece una variante `es-MX`. La categoría ortográfica `TYPOS` está habilitada y se filtran automáticamente siglas reconocidas, fragmentos demasiado cortos y términos incluidos expresamente en `language_tool_accepted_terms`. No se descarta una palabra común sólo por parecer nombre propio. Toda coincidencia se marca `possible`, `requires_human_review` y método `language_tool`; el fallo o tiempo de espera del servidor se registra sin detener el análisis determinista.
+
+El reporte HTML presenta primero las validaciones de tablas y cifras, después concordancia, claridad y ortografía. Las incidencias de formato se agrupan por regla, mensaje y estado dentro de un bloque plegable secundario; se conservan todas sus ubicaciones para auditoría sin dominar el conteo principal. La opción `--sarif .\results\revision.sarif` genera además un archivo SARIF 2.1.0 compatible con visores especializados, sin sustituir los reportes JSON, HTML o Markdown.
+
+Cada ocurrencia editorial del HTML permite registrar una decisión humana y un comentario. La descarga usa el esquema `review-decisions-1.2` e incluye alertas numéricas, relaciones semánticas y hallazgos editoriales con su tipo explícito. Estas decisiones pueden convertirse en un dataset anonimizado para un futuro priorizador de falsos positivos; el procedimiento y sus garantías se describen en [`docs/aprendizaje_editorial.md`](docs/aprendizaje_editorial.md). El mecanismo no entrena ni activa todavía ningún modelo.
+
+### Piloto por lotes
+
+El piloto puede seleccionar documentos representativos por extensión, cuadros, siglas y control de cambios. Genera un tablero consolidado, cuatro formatos por documento, conserva un punto de reanudación y comparte una caché de LanguageTool que almacena hashes y metadatos, nunca párrafos.
+
+```powershell
+$env:PYTHONPATH = "src;scripts"
+python scripts/pilot_editorial_crf.py .\CRF-ejemplos `
+  --output .\results\editorial_pilot_5_lt `
+  --sample-size 5 `
+  --language-tool `
+  --resume
+```
+
+La opción `--resume` sólo reutiliza un documento cuando conserva el mismo SHA-256 y siguen presentes todas sus salidas. `language_tool_cache_namespace` debe cambiar cuando se actualice la versión o configuración lingüística que afecte los resultados.
+
+La cobertura determinista comprende porcentajes, separadores, cantidades mixtas, fracciones, consistencia decimal, siglas, abreviaturas, unidades, palabras no recomendadas y formato OOXML efectivo de páginas, párrafos, notas y cuadros. La paginación y apariencia renderizada permanecen desacopladas mediante un verificador visual nulo. La matriz de cobertura, estados y limitaciones se documenta en [`docs/revision_editorial_asf.md`](docs/revision_editorial_asf.md). No se afirma cobertura total de las instrucciones.
+
+Para generar y evaluar el banco editorial sintético determinista:
+
+```powershell
+$env:PYTHONPATH = "src;scripts"
+python scripts/evaluate_editorial.py --regenerate
+```
+
+El comando crea DOCX inventados y exporta `results/editorial_validation/evaluation.json` y `.md`. Devuelve código `0` cuando no hay falsos positivos ni omisiones, `2` cuando las métricas detectan diferencias y `1` ante un error de ejecución. El banco no acepta Ollama para evitar mezclar la calibración determinista con la evaluación contextual.
+
+La evaluación contextual se ejecuta por separado sobre textos completamente sintéticos:
+
+```powershell
+$env:PYTHONPATH = "src;scripts"
+python scripts/evaluate_editorial_context.py --models qwen3.5:4b
+```
+
+El resultado queda en `results/editorial_context/model-evaluation.json`. El banco efectivo contiene 100 casos sintéticos separados en desarrollo, calibración y prueba. Puede usarse `--focused-first` para ejecutar primero diez casos difíciles. Un modelo sólo se aprueba con precisión ≥ 0.90, exhaustividad ≥ 0.85, exactitud ≥ 0.90, acuerdo ≥ 0.95 en tres repeticiones, sin JSON inválido ni alteraciones de elementos protegidos.
+
+Para medir estabilidad, use `--repetitions 3`. Una prueba rápida puede limitarse con `--max-cases 6`; la aprobación completa debe ejecutarse sin ese límite y exige al menos 0.95 de acuerdo entre repeticiones.
+
+La evaluación completa vigente no aprueba `qwen3.5:4b` para uso contextual general. La prueba corta fue perfecta, pero no se sostuvo al ampliar la diversidad: Ollama debe mantenerse desactivado salvo experimentación controlada y revisión humana.
+
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 ```

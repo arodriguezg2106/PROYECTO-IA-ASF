@@ -1,0 +1,36 @@
+{
+  "schema_version": "editorial-abbreviations-1.0",
+  "document_code": "2IN2RE01",
+  "document_version": "02-2025",
+  "general": {
+    "art": "art.",
+    "arts": "arts.",
+    "cap": "cap.",
+    "caps": "caps.",
+    "inc": "inc.",
+    "núm": "núm.",
+    "núms": "núms.",
+    "pág": "pág.",
+    "págs": "págs.",
+    "párr": "párr.",
+    "párrs": "párrs.",
+    "tít": "tít.",
+    "vol": "vol."
+  },
+  "units": {
+    "kg": {"canonical": "kg", "forbid_plural": true, "forbid_period": true},
+    "g": {"canonical": "g", "forbid_plural": true, "forbid_period": true},
+    "mg": {"canonical": "mg", "forbid_plural": true, "forbid_period": true},
+    "km": {"canonical": "km", "forbid_plural": true, "forbid_period": true},
+    "m": {"canonical": "m", "forbid_plural": true, "forbid_period": true},
+    "cm": {"canonical": "cm", "forbid_plural": true, "forbid_period": true},
+    "mm": {"canonical": "mm", "forbid_plural": true, "forbid_period": true},
+    "l": {"canonical": "l", "forbid_plural": true, "forbid_period": true},
+    "ml": {"canonical": "ml", "forbid_plural": true, "forbid_period": true},
+    "ha": {"canonical": "ha", "forbid_plural": true, "forbid_period": true},
+    "kw": {"canonical": "kW", "forbid_plural": true, "forbid_period": true},
+    "mw": {"canonical": "MW", "forbid_plural": true, "forbid_period": true},
+    "kwh": {"canonical": "kWh", "forbid_plural": true, "forbid_period": true},
+    "mwh": {"canonical": "MWh", "forbid_plural": true, "forbid_period": true}
+  }
+}

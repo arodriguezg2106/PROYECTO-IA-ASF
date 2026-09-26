@@ -1,0 +1,27 @@
+[editorial]
+enabled = true
+ollama_enabled = false
+model = "qwen3.5:4b"
+base_url = "http://localhost:11434/api"
+temperature = 0.0
+timeout_seconds = 120
+max_fragment_chars = 4000
+confidence_threshold = 0.8
+categories = []
+min_paragraph_words = 8
+max_paragraph_words = 180
+excluded_style_patterns = ["title", "heading", "título", "subtítulo", "caption"]
+check_format = true
+experimental_model = false
+language_tool_enabled = false
+language_tool_experimental = false
+language_tool_url = "http://127.0.0.1:8081/v2"
+language_tool_language = "es"
+language_tool_timeout_seconds = 10
+language_tool_rule_ids = []
+language_tool_categories = []
+language_tool_excluded_categories = []
+language_tool_accepted_terms = [] # vocabulario institucional validado; no agregar palabras dudosas
+language_tool_cache_path = "results/cache/languagetool.sqlite3"
+language_tool_cache_namespace = "LanguageTool-6.6"
+autofix = false

@@ -33,3 +33,6 @@ temp/
 *.log
 ~$*
 .env
+editorial-config.toml
+semantic-config.toml
+*.local.toml
