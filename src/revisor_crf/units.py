@@ -1,7 +1,7 @@
 """Evidencia y procedencia de unidades; no fuerza unidades contradictorias."""
 
 import re
-from decimal import Decimal
+from decimal import Decimal, localcontext
 
 PATTERN = re.compile(r"(?<!\w)(millones?\s+de\s+pesos|miles\s+de\s+pesos|mdp|pesos|por\s+ciento|%|personas|obras|municipios|unidades|UMA|kg|km|litros|horas)(?!\w)", re.I)
 MEASURE_HEADER = re.compile(r"\b(?:importe|monto|pagad[oa]s?|ejercid[oa]s?|contratad[oa]s?|observad[oa]s?|subtotal|total|diferencias?|precio|costo)\b", re.I)
@@ -75,7 +75,6 @@ def resolve(number):
     number["unidad_origen"] = {"explicit": "texto_adyacente", "column_header": "encabezado_columna", "row_header": "encabezado_fila",
                                "table_title": "rótulo_tabla", "table_note": "rótulo_tabla", "previous_paragraph": "texto_previo"}[chosen["source"]]
     if number["valor_decimal"] is not None:
-        from decimal import localcontext
         with localcontext() as context:
             context.prec = max(28, len(number["valor_decimal"].as_tuple().digits) + 16)
             number["valor_normalizado"] = number["valor_decimal"] * scale

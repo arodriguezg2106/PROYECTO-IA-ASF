@@ -267,3 +267,43 @@ def test_cli_numeric_export_is_bounded(tmp_path):
     result = json.loads(output.read_text(encoding="utf-8"))
     assert "blocks" not in result
     assert len(result["cifras"][0]["contexto_inmediato"]) <= 150
+
+
+def test_column_eligibility_missing_units_scoped_to_group():
+    """Regresión: missing_units debe pertenecer al grupo del número, no al último grupo procesado.
+
+    Bug original: la variable missing_units del for exterior se leía en el for interior
+    después de que el loop ya terminó, usando siempre el valor del último grupo.
+    """
+    from revisor_crf.confidence import column_eligibility
+    from decimal import Decimal
+
+    # Grupo A (tabla t1, columna 2): unidad explícita "pesos"
+    n_explicit = {
+        "tabla": "t1", "columna": 2, "vistas": ["final"],
+        "tipo": "importe", "valor_decimal": Decimal("100"),
+        "valor_normalizado": Decimal("100"), "multiplicador": Decimal("1"),
+        "unidad_original": "pesos", "unidad_canonica": "pesos",
+        "revision_status": "normal", "motivos_ambiguedad": [],
+        "is_table_header": False, "usable_for_arithmetic": True,
+        "encabezado_columna": "Importe pagado",
+    }
+    # Grupo B (tabla t2, columna 1): sin unidad, columna monetaria homogénea.
+    # Se pone DESPUÉS para que sea el "último grupo" y desencadene el bug original.
+    n_no_unit = {
+        "tabla": "t2", "columna": 1, "vistas": ["final"],
+        "tipo": "importe", "valor_decimal": Decimal("50"),
+        "valor_normalizado": Decimal("50"), "multiplicador": Decimal("1"),
+        "unidad_original": None, "unidad_canonica": None,
+        "revision_status": "normal",
+        "motivos_ambiguedad": ["cantidad_sin_unidad_explicita"],
+        "is_table_header": False, "usable_for_arithmetic": False,
+        "encabezado_columna": "Total ejercido",
+    }
+    column_eligibility([n_explicit, n_no_unit])
+
+    # Grupo A tiene unidad explícita → su arithmetic_reason NO debe decir "homogénea"
+    assert "homogénea" not in n_explicit.get("arithmetic_reason", ""), (
+        f"Bug regresión: n_explicit recibió arithmetic_reason del grupo incorrecto: "
+        f"'{n_explicit.get('arithmetic_reason')}'"
+    )

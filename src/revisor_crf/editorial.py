@@ -1,7 +1,11 @@
 """Revisión editorial ASF local, trazable y sin modificación del DOCX."""
 from __future__ import annotations
 
-import hashlib, json, re, time, tomllib
+import hashlib
+import json
+import re
+import time
+import tomllib
 from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -75,7 +79,16 @@ class EditorialConfig:
             if isinstance(values.get(key), list): values[key] = tuple(values[key])
         result = cls(**values)
         if result.autofix: raise ValueError("autofix no está disponible en esta versión.")
-        if not 0 <= result.temperature <= 1 or not 0 <= result.confidence_threshold <= 1 or result.timeout_seconds <= 0 or result.language_tool_timeout_seconds <= 0 or result.max_fragment_chars < 100 or result.min_paragraph_words < 1 or result.max_paragraph_words <= result.min_paragraph_words:
+        _invalid_config = (
+            not 0 <= result.temperature <= 1
+            or not 0 <= result.confidence_threshold <= 1
+            or result.timeout_seconds <= 0
+            or result.language_tool_timeout_seconds <= 0
+            or result.max_fragment_chars < 100
+            or result.min_paragraph_words < 1
+            or result.max_paragraph_words <= result.min_paragraph_words
+        )
+        if _invalid_config:
             raise ValueError("Configuración editorial fuera de rango.")
         if result.language_tool_enabled and not result.language_tool_experimental:
             raise ValueError("LanguageTool requiere activación experimental explícita.")
@@ -561,6 +574,7 @@ def review_editorial(path, document, config=None, catalog_path=None, provider=No
         method_durations["ollama"]=round(time.perf_counter()-ollama_started,6)
     language_tool_errors=[]; language_tool_calls=0
     language_tool_started=time.perf_counter()
+    lt_client = None  # inicialización defensiva: se asigna solo si language_tool_enabled
     if config.language_tool_enabled:
         from .language_tool import LanguageToolProvider
         if language_tool_provider is not None:
@@ -627,13 +641,72 @@ def review_editorial(path, document, config=None, catalog_path=None, provider=No
     for focus in by_focus:
         groups_by_focus[focus]=len({(x["rule_id"],x["message"],x["evaluation_status"])
                                     for x in findings if x["review_focus"]==focus})
-    return {"schema_version":"editorial-asf-1.0","enabled":config.enabled,"catalog_version":catalog["catalog_version"],"document_code":catalog["document_code"],"document_version":catalog["document_version"],"model":config.model if config.ollama_enabled else None,
-      "ollama":{"enabled":config.ollama_enabled,"experimental":config.experimental_model,"model":model_info,"calls":calls,"errors":errors,"status":"complete" if not errors else "partial","duration_seconds":method_durations.get("ollama",0.0)},
-      "language_tool":{"enabled":config.language_tool_enabled,"experimental":config.language_tool_experimental,
-        "provider":"language_tool","language":config.language_tool_language,"calls":language_tool_calls,
-        "errors":language_tool_errors,"status":"disabled" if not config.language_tool_enabled else "complete" if not language_tool_errors else "partial",
-        "duration_seconds":method_durations.get("language_tool",0.0),"cache":getattr(lt_client,"stats",{}) if config.language_tool_enabled else {}},
-      "visual_verification":visual,"coverage":coverage,
-      "rules_evaluated":[rid for rid,item in coverage.items() if item["status"]=="evaluated"],"rules_not_evaluable":not_eval,"rules_excluded":excluded,
-      "findings":findings,"rejected_suggestions":rejected,"acronym_glossary":glossary,
-      "summary":{"findings":len(findings),"substantive_findings":len(findings)-by_focus.get("format",0),"format_occurrences":by_focus.get("format",0),"distinct_rules":len({x["rule_id"] for x in findings}),"distinct_groups":len({(x["rule_id"],x["message"],x["evaluation_status"]) for x in findings}),"by_focus":dict(by_focus),"groups_by_focus":dict(groups_by_focus),"by_severity":dict(Counter(x["severity"] for x in findings)),"by_category":dict(Counter(x["category"] for x in findings)),"by_method":dict(Counter(x["detection_method"] for x in findings)),"by_evaluation_status":dict(Counter(x["evaluation_status"] for x in findings)),"rejected_suggestions":len(rejected),"duration_by_method":method_durations},"duration_seconds":round(time.perf_counter()-started,6),"config":{"autofix":False,"confidence_threshold":config.confidence_threshold,"min_paragraph_words":config.min_paragraph_words,"max_paragraph_words":config.max_paragraph_words,"check_format":config.check_format,"experimental_model":config.experimental_model,"language_tool_experimental":config.language_tool_experimental}}
+    _ollama_status = {
+        "enabled": config.ollama_enabled,
+        "experimental": config.experimental_model,
+        "model": model_info,
+        "calls": calls,
+        "errors": errors,
+        "status": "complete" if not errors else "partial",
+        "duration_seconds": method_durations.get("ollama", 0.0),
+    }
+    _lt_status = {
+        "enabled": config.language_tool_enabled,
+        "experimental": config.language_tool_experimental,
+        "provider": "language_tool",
+        "language": config.language_tool_language,
+        "calls": language_tool_calls,
+        "errors": language_tool_errors,
+        "status": (
+            "disabled" if not config.language_tool_enabled
+            else "complete" if not language_tool_errors
+            else "partial"
+        ),
+        "duration_seconds": method_durations.get("language_tool", 0.0),
+        "cache": getattr(lt_client, "stats", {}) if config.language_tool_enabled else {},
+    }
+    _summary = {
+        "findings": len(findings),
+        "substantive_findings": len(findings) - by_focus.get("format", 0),
+        "format_occurrences": by_focus.get("format", 0),
+        "distinct_rules": len({x["rule_id"] for x in findings}),
+        "distinct_groups": len({(x["rule_id"], x["message"], x["evaluation_status"]) for x in findings}),
+        "by_focus": dict(by_focus),
+        "groups_by_focus": dict(groups_by_focus),
+        "by_severity": dict(Counter(x["severity"] for x in findings)),
+        "by_category": dict(Counter(x["category"] for x in findings)),
+        "by_method": dict(Counter(x["detection_method"] for x in findings)),
+        "by_evaluation_status": dict(Counter(x["evaluation_status"] for x in findings)),
+        "rejected_suggestions": len(rejected),
+        "duration_by_method": method_durations,
+    }
+    _config_out = {
+        "autofix": False,
+        "confidence_threshold": config.confidence_threshold,
+        "min_paragraph_words": config.min_paragraph_words,
+        "max_paragraph_words": config.max_paragraph_words,
+        "check_format": config.check_format,
+        "experimental_model": config.experimental_model,
+        "language_tool_experimental": config.language_tool_experimental,
+    }
+    return {
+        "schema_version": "editorial-asf-1.0",
+        "enabled": config.enabled,
+        "catalog_version": catalog["catalog_version"],
+        "document_code": catalog["document_code"],
+        "document_version": catalog["document_version"],
+        "model": config.model if config.ollama_enabled else None,
+        "ollama": _ollama_status,
+        "language_tool": _lt_status,
+        "visual_verification": visual,
+        "coverage": coverage,
+        "rules_evaluated": [rid for rid, item in coverage.items() if item["status"] == "evaluated"],
+        "rules_not_evaluable": not_eval,
+        "rules_excluded": excluded,
+        "findings": findings,
+        "rejected_suggestions": rejected,
+        "acronym_glossary": glossary,
+        "summary": _summary,
+        "duration_seconds": round(time.perf_counter() - started, 6),
+        "config": _config_out,
+    }

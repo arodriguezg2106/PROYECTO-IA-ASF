@@ -9,6 +9,7 @@ import re
 import sqlite3
 import time
 import tomllib
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -322,7 +323,6 @@ def response_schema(case_ids: list[str]) -> dict:
 
 
 def _plain(value: str | None) -> str:
-    import unicodedata
 
     normalized = unicodedata.normalize("NFKD", value or "")
     normalized = "".join(char for char in normalized if not unicodedata.combining(char)).lower()
@@ -442,7 +442,10 @@ def _evidence_haystack(case: dict, side: str) -> str:
 def validate_decision(decision: dict, case: dict) -> dict:
     required = {"case_id", "relation", "table_measure", "narrative_measure", "confidence",
                 "table_evidence", "narrative_evidence"}
-    if not isinstance(decision, dict) or set(decision) != required:
+    if not isinstance(decision, dict):
+        raise ValueError("semantic_invalid_fields")
+    missing_fields = required - set(decision)
+    if missing_fields:
         raise ValueError("semantic_invalid_fields")
     if decision["case_id"] != case["case_id"] or decision["relation"] not in RELATIONS:
         raise ValueError("semantic_invalid_identity")

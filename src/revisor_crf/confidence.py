@@ -91,14 +91,16 @@ def column_eligibility(numbers):
             explicit_units and len(signatures) == 1 or monetary_column_without_unit
         )
         for n in values:
-            outcomes[id(n)].append(bool(eligible))
+            outcomes[id(n)].append((bool(eligible), bool(missing_units)))
     for n in numbers:
         if n.get("is_table_header"):
             n["usable_for_arithmetic"] = False
         if id(n) in outcomes:
-            n["column_arithmetic_eligible"] = all(outcomes[id(n)])
+            results = outcomes[id(n)]
+            n["column_arithmetic_eligible"] = all(r[0] for r in results)
             n["usable_for_arithmetic"] = n["column_arithmetic_eligible"]
-            if n["column_arithmetic_eligible"] and missing_units:
+            col_missing = any(r[1] for r in results)
+            if n["column_arithmetic_eligible"] and col_missing:
                 n["arithmetic_reason"] = "Columna numérica homogénea; la operación interna no requiere inferir moneda."
             else:
                 n["arithmetic_reason"] = "Columna con Decimal válidos y unidad/escala común." if n["column_arithmetic_eligible"] else "Columna con tipos, unidades, escalas o valores no elegibles."
