@@ -24,7 +24,38 @@ pyproject.toml
 
 ## Instalación en Windows (PowerShell)
 
-Requiere Python 3.11 o posterior. Ejecutar los comandos desde la raíz del proyecto. La primera configuración se realizó con Python 3.14.0 y paquetes ya instalados, sin descargas:
+Requiere Python 3.11 o posterior (probado con 3.14.0). Ejecute los comandos desde la raíz del proyecto. No es necesario activar el entorno, cambiar la política de ejecución ni definir `PYTHONPATH`; la instalación editable conecta el comando con el código de `src`.
+
+### Instalación normal (con internet)
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -e .
+```
+
+`requirements.txt` incluye las dependencias de ejecución (`python-docx`, `lxml`) y también `pytest`, que solo necesitan los desarrolladores.
+
+### Instalación institucional (sin internet)
+
+Requiere un repositorio de wheels preparado previamente. `vendor/wheels/` **no forma parte del repositorio** (está en `.gitignore`): debe crearse en un equipo con internet y copiarse al equipo destino, con la misma versión de Python y arquitectura Windows. Preparación, en el equipo con internet:
+
+```powershell
+python -m pip download -r requirements.txt -d .\vendor\wheels
+python -m pip download setuptools wheel -d .\vendor\wheels
+```
+
+Instalación en el equipo sin internet (entorno aislado):
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --no-index --find-links .\vendor\wheels -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install --no-index --find-links .\vendor\wheels -e .
+```
+
+Si falta una versión indicada, pip falla con `No matching distribution found`: no intenta descargarla.
+
+Alternativa para un Python que ya tiene instaladas las versiones exactas de `requirements.txt` (entorno **no aislado**, comparte los paquetes del sistema):
 
 ```powershell
 python -m venv --system-site-packages .venv
@@ -32,19 +63,21 @@ python -m venv --system-site-packages .venv
 .\.venv\Scripts\python.exe -m pip install --no-index --no-build-isolation -e .
 ```
 
-Este entorno virtual aprovecha los paquetes de la instalación local de Python; **no está completamente aislado**. `--no-index` impide consultar índices de paquetes. Si faltan las versiones indicadas, la instalación falla: no intenta descargarlas.
+### Dependencias opcionales para reportes y Excel
 
-Para una instalación aislada y sin internet en otro equipo, colocar previamente las ruedas (`.whl`) compatibles de las dependencias y sus dependencias transitivas en `vendor/wheels/`, dentro del proyecto. En un entorno nuevo:
+`openpyxl` solo se necesita para los scripts de paquetes de validación en Excel (`scripts/human_validation_small.py`, `scripts/build_*_handoff.py`, `scripts/verify_inventory_package.py`, `scripts/workbook_helpers.py`). La revisión normal del CRF no lo usa.
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --no-index --find-links .\vendor\wheels -r requirements.txt
-.\.venv\Scripts\python.exe -m pip install --no-index --no-build-isolation -e .
+.\.venv\Scripts\python.exe -m pip install -r requirements-reporting.txt
 ```
 
-No es necesario activar el entorno, cambiar la política de ejecución de PowerShell ni definir `PYTHONPATH`. La instalación editable mantiene el comando conectado al código de `src`.
+En una instalación sin internet, añada la wheel de `openpyxl` (y `et-xmlfile`) a `vendor/wheels/` y use `--no-index --find-links .\vendor\wheels`.
 
-## Generar y leer el ejemplo sintético
+### Funciones opcionales y experimentales
+
+La revisión semántica con **Ollama** y la revisión editorial con **LanguageTool** u Ollama están desactivadas por defecto, son experimentales, requieren software externo local y no son necesarias para el flujo descrito abajo. Ningún comando de las secciones principales las necesita.
+
+## Generar y leer el ejemplo sintético (comprobación de la instalación)
 
 ```powershell
 .\.venv\Scripts\python.exe -m revisor_crf.sample .\data\sintetico.docx
@@ -55,19 +88,21 @@ Para leer otro archivo local, sustituir la ruta de entrada. La salida debe termi
 
 ## Motor de validaciones determinísticas
 
+Los ejemplos usan `.\data\sintetico.docx` (generado en la sección anterior). Para revisar su propio CRF, copie el DOCX a `.\data\` —carpeta ignorada por Git— y sustituya la ruta de entrada; el original nunca se modifica.
+
 ```powershell
-.\.venv\Scripts\python.exe -m revisor_crf .\data\crf.docx --mode final --review -o .\results\revision.json --html .\results\revision.html --commented-docx .\results\crf_REVISION_IA.docx
+.\.venv\Scripts\python.exe -m revisor_crf .\data\sintetico.docx --mode final --review -o .\results\revision.json --html .\results\revision.html --commented-docx .\results\crf_REVISION_IA.docx
 ```
 
 `--review` comprueba subtotales y totales, relaciones de importes entre tabla y narrativa, y congruencia explícita entre observación y conclusión. El JSON `review-1.1` conserva operación, valores, diferencia, unidad, evidencia, origen determinístico o híbrido y una ruta humana con resultado, tabla, fila, columna y texto de búsqueda. El HTML funciona sin servidor ni recursos externos: muestra el bloque “Dónde revisar”, permite copiar la ubicación o el texto para buscar en Word, desglosa los cálculos por fila y permite filtrar, clasificar, comentar, importar y descargar decisiones humanas. Las decisiones del navegador se vinculan al SHA-256 del DOCX y nunca modifican el original.
 
-## Revisión semántica local
+## Revisión semántica local (opcional y experimental)
 
 La revisión semántica es opcional. Requiere Ollama instalado, uno de los modelos aprobados descargado localmente y una copia de `semantic-config.example.toml` ajustada al equipo. El modelo propone relaciones; únicamente las reglas del programa calculan diferencias y crean alertas. Las relaciones dudosas aparecen en el HTML y nunca se agregan como comentarios de Word.
 
 ```powershell
 ollama pull qwen3.5:4b
-.\.venv\Scripts\python.exe -m revisor_crf .\data\crf.docx --review --semantic-review --semantic-config .\semantic-config.example.toml -o .\results\revision.json --html .\results\revision.html --commented-docx .\results\crf_REVISION_IA.docx
+.\.venv\Scripts\python.exe -m revisor_crf .\data\sintetico.docx --review --semantic-review --semantic-config .\semantic-config.example.toml -o .\results\revision.json --html .\results\revision.html --commented-docx .\results\crf_REVISION_IA.docx
 ```
 
 Si Ollama no responde, el comando termina la revisión determinística, registra una advertencia y genera los archivos solicitados. La caché SQLite usa el hash del documento, caso, modelo, prompt y esquema; no guarda documentos completos. La instalación institucional, el dataset aprobado y la selección reproducible del modelo se describen en [`docs/revision_semantica.md`](docs/revision_semantica.md).
@@ -76,37 +111,59 @@ La regla de totales reconoce subtotales con nombre de fondo y construye el total
 
 `--commented-docx` crea una copia independiente con comentarios verdaderos de Word anclados al párrafo o celda principal de cada alerta. Varias alertas de la misma ubicación se agrupan en un solo comentario. Los comentarios presentan el identificador, la ubicación, los valores y la acción sugerida; nunca corrigen el contenido ni sobrescriben el CRF original.
 
+Si el documento no produce alertas (como `sintetico.docx`), la copia comentada queda idéntica en contenido al original y no contiene `comments.xml`. Para ver un comentario real, cree un documento sintético con una discrepancia (total 200 frente a una suma de 150):
+
+```powershell
+@'
+from docx import Document
+d = Document()
+d.add_paragraph("Cuadro 1. Recursos (miles de pesos)")
+t = d.add_table(rows=4, cols=2)
+for r, (a, b) in enumerate([("Concepto", "Importe"), ("Rubro A", "100.0"), ("Rubro B", "50.0"), ("Total", "200.0")]):
+    t.cell(r, 0).text = a
+    t.cell(r, 1).text = b
+d.add_paragraph("El total fue de 150.0 miles de pesos.")
+d.save("data/alerta.docx")
+'@ | .\.venv\Scripts\python.exe -
+.\.venv\Scripts\python.exe -m revisor_crf .\data\alerta.docx --review -o .\results\alerta.json --html .\results\alerta.html --commented-docx .\results\alerta_REVISION_IA.docx
+```
+
 La evaluación de una integración posterior mediante un complemento de panel lateral de Word se documenta en [`docs/evaluacion_integracion_word.md`](docs/evaluacion_integracion_word.md). La recomendación actual es validar primero las copias comentadas y conservar el complemento como una segunda fase sujeta a compatibilidad y despliegue institucional.
 
 Las etiquetas y frases pueden ajustarse con `--rules catalogo.json`. El catálogo es un objeto JSON que puede sustituir `version`, `total_labels`, `observation_positive`, `observation_negative`, `conclusion_markers` o `scope_markers`; las expresiones omitidas conservan los valores predeterminados. `--numbers` se mantiene sin cambios y no puede combinarse con `--review`.
 
-## Ejecutar las pruebas
-
-## Revisión editorial ASF (cobertura inicial)
+## Revisión editorial ASF (cobertura inicial, opcional)
 
 El módulo editorial es opcional, no modifica el DOCX y funciona sin Ollama. Usa el catálogo versionado `2IN2RE01-02-2025-partial-1`, derivado del PDF institucional local. El modo recomendado y predeterminado es `final`.
 
 ```powershell
-.\.venv\Scripts\python.exe -m revisor_crf .\data\crf.docx --mode final --review --editorial-review -o .\results\revision.json --html .\results\revision.html --markdown .\results\revision.md
+.\.venv\Scripts\python.exe -m revisor_crf .\data\sintetico.docx --mode final --review --editorial-review -o .\results\revision.json --html .\results\revision.html --markdown .\results\revision.md
 ```
 
 Para activar la revisión contextual local, copie y ajuste `editorial-config.example.toml` y agregue `--editorial-ollama --editorial-config .\editorial-config.toml`. Para desactivarla, omita `--editorial-ollama` o mantenga `ollama_enabled = false`. Los fallos de Ollama se registran por fragmento y no interrumpen las reglas deterministas.
 
 Un modelo sólo puede activarse normalmente si figura como `approved` en el registro versionado. Para una evaluación controlada de un modelo no aprobado debe agregarse `--editorial-experimental-model`; todas sus propuestas requieren revisión humana y esta opción no equivale a una aprobación.
 
-### LanguageTool local experimental
+### LanguageTool local (opcional y experimental)
 
 LanguageTool puede complementar las reglas ASF con sugerencias gramaticales locales. La integración no consulta la API pública: sólo admite `http://localhost`, `127.0.0.1` o `::1`, permanece desactivada por defecto y no incorpora sus resultados como errores confirmados. La instancia autónoma debe iniciarse por separado en el puerto configurado; el ejemplo supone `http://127.0.0.1:8081/v2`.
 
-En el equipo de desarrollo, Java 17 y LanguageTool están instalados en paralelo con Java 8. El servidor se controla sin ventanas visibles y no se inicia automáticamente con Windows:
+Requiere Java 17 y una instalación autónoma de LanguageTool. Los valores predeterminados de [`scripts/start_languagetool.ps1`](scripts/start_languagetool.ps1) corresponden al equipo del autor; en otro equipo no se edita el script: las rutas se pasan como parámetros `-JavaExe` y `-LanguageToolDir`. El servidor se controla sin ventanas visibles y no se inicia automáticamente con Windows:
 
 ```powershell
-.\scripts\start_languagetool.ps1
+.\scripts\start_languagetool.ps1 `
+  -JavaExe "C:\ruta\a\java.exe" `
+  -LanguageToolDir "C:\ruta\a\LanguageTool"
+```
+
+Para detenerlo:
+
+```powershell
 .\scripts\stop_languagetool.ps1
 ```
 
 ```powershell
-.\.venv\Scripts\python.exe -m revisor_crf .\data\crf.docx --mode final --review --editorial-review --editorial-language-tool --editorial-experimental-provider -o .\results\revision.json --html .\results\revision.html --markdown .\results\revision.md
+.\.venv\Scripts\python.exe -m revisor_crf .\data\sintetico.docx --mode final --review --editorial-review --editorial-language-tool --editorial-experimental-provider -o .\results\revision.json --html .\results\revision.html --markdown .\results\revision.md
 ```
 
 Las categorías y reglas admitidas pueden limitarse mediante `language_tool_categories` y `language_tool_rule_ids` en `editorial-config.example.toml`. Se usa el código `es` porque LanguageTool 6.6 no ofrece una variante `es-MX`. La categoría ortográfica `TYPOS` está habilitada y se filtran automáticamente siglas reconocidas, fragmentos demasiado cortos y términos incluidos expresamente en `language_tool_accepted_terms`. No se descarta una palabra común sólo por parecer nombre propio. Toda coincidencia se marca `possible`, `requires_human_review` y método `language_tool`; el fallo o tiempo de espera del servidor se registra sin detener el análisis determinista.
@@ -116,6 +173,8 @@ El reporte HTML presenta primero las validaciones de tablas y cifras, después c
 Cada ocurrencia editorial del HTML permite registrar una decisión humana y un comentario. La descarga usa el esquema `review-decisions-1.2` e incluye alertas numéricas, relaciones semánticas y hallazgos editoriales con su tipo explícito. Estas decisiones pueden convertirse en un dataset anonimizado para un futuro priorizador de falsos positivos; el procedimiento y sus garantías se describen en [`docs/aprendizaje_editorial.md`](docs/aprendizaje_editorial.md). El mecanismo no entrena ni activa todavía ningún modelo.
 
 ### Piloto por lotes
+
+> **Solo desarrolladores.** Desde esta sección hasta antes de «Ejecutar las pruebas» los comandos con `scripts/` se ejecutan desde la raíz del clon, con `$env:PYTHONPATH = "src;scripts"`, y suponen carpetas locales que no vienen en el repositorio (`.\CRF-ejemplos`). `scripts/evaluate_editorial.py --regenerate` sí es reproducible: genera sus propios DOCX sintéticos.
 
 El piloto puede seleccionar documentos representativos por extensión, cuadros, siglas y control de cambios. Genera un tablero consolidado, cuatro formatos por documento, conserva un punto de reanudación y comparte una caché de LanguageTool que almacena hashes y metadatos, nunca párrafos.
 
@@ -153,6 +212,10 @@ El resultado queda en `results/editorial_context/model-evaluation.json`. El banc
 Para medir estabilidad, use `--repetitions 3`. Una prueba rápida puede limitarse con `--max-cases 6`; la aprobación completa debe ejecutarse sin ese límite y exige al menos 0.95 de acuerdo entre repeticiones.
 
 La evaluación completa vigente no aprueba `qwen3.5:4b` para uso contextual general. La prueba corta fue perfecta, pero no se sostuvo al ampliar la diversidad: Ollama debe mantenerse desactivado salvo experimentación controlada y revisión humana.
+
+## Ejecutar las pruebas (desarrolladores)
+
+Requiere `pytest` (incluido en `requirements.txt`) y el proyecto instalado en modo editable.
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
@@ -194,6 +257,8 @@ El recorrido utiliza `python-docx` y acceso XML con `lxml`; algunas operaciones 
 
 ## Auditoría del lote CRF
 
+> **Solo desarrolladores.** Requiere un clon del repositorio y `$env:PYTHONPATH`. Los DOCX de `tests/CRF-sinteticas` y los resultados históricos son artefactos locales ignorados por Git; no vienen en una instalación nueva.
+
 La carpeta `tests/CRF-sinteticas` contiene los ejemplos aportados para la auditoría manual; las pruebas automatizadas siguen generando exclusivamente sus propios documentos. La auditoría compara todos los párrafos `w:p` de `word/*.xml` con las ubicaciones recuperadas y verifica integridad SHA-256, texto completo, duplicados y orden. No imprime texto de las CRF ni exporta su contenido completo.
 
 ```powershell
@@ -233,7 +298,7 @@ Se reconocen envoltorios de inserción/eliminación/movimiento, rangos XML de mo
 # Un documento; exporta exclusivamente el inventario y sus metadatos.
 .\.venv\Scripts\python.exe -m revisor_crf .\data\sintetico.docx --numbers --mode final -o .\results\cifras.json
 
-# Los 14 DOCX de tests/CRF-sinteticas; no muestra su texto en terminal.
+# Solo desarrolladores: requiere el clon del repositorio y los 14 DOCX locales de tests/CRF-sinteticas (no incluidos).
 .\.venv\Scripts\python.exe scripts\inventory_numbers.py --mode final
 .\.venv\Scripts\python.exe scripts\inventory_numbers.py --mode original
 .\.venv\Scripts\python.exe scripts\inventory_numbers.py --mode all
