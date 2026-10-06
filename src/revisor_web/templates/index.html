@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Revisor de CRF · Interfaz Web Interna</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --border: #cbd5e1;
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --primary-focus: rgba(2, 132, 199, 0.25);
+      --success: #15803d;
+      --success-bg: #f0fdf4;
+      --warning: #b45309;
+      --warning-bg: #fffbeb;
+      --error: #b91c1c;
+      --error-bg: #fef2f2;
+      --badge-bg: #e2e8f0;
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+      color: var(--text);
+      background-color: var(--bg);
+      padding: 1.5rem 1rem;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 2rem;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      color: #032b43;
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      background: #fafafa;
+      transition: border-color 0.15s, background-color 0.15s;
+    }
+
+    .dropzone.dragover {
+      border-color: var(--primary);
+      background: #f0f9ff;
+    }
+
+    .dropzone:focus-within {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+    }
+
+    .file-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+
+    .btn {
+      display: inline-block;
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 0.65rem 1.25rem;
+      border-radius: var(--radius);
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      text-align: center;
+      transition: background-color 0.15s, transform 0.05s;
+    }
+
+    .btn:focus-visible {
+      outline: 3px solid var(--primary-focus);
+      outline-offset: 2px;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+    }
+
+    .btn-primary:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      background: #cbd5e1;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .btn-outline:hover {
+      background: #f1f5f9;
+    }
+
+    .actions-bar {
+      margin-top: 1.25rem;
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .file-info {
+      font-weight: 500;
+      color: var(--text);
+      word-break: break-all;
+    }
+
+    .alert {
+      padding: 1rem;
+      border-radius: var(--radius);
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
+    }
+
+    .alert-error {
+      background: var(--error-bg);
+      color: var(--error);
+      border: 1px solid #fecaca;
+    }
+
+    .alert-success {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid #bbf7d0;
+    }
+
+    .alert-warning {
+      background: var(--warning-bg);
+      color: var(--warning);
+      border: 1px solid #fde68a;
+    }
+
+    /* Estados de procesamiento */
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.65rem;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+    }
+
+    .status-recibido { background: #e0f2fe; color: #0369a1; }
+    .status-procesando { background: #fef3c7; color: #92400e; }
+    .status-terminado { background: #dcfce7; color: #166534; }
+    .status-fallido { background: #fee2e2; color: #991b1b; }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 8px;
+      background: #e2e8f0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 1rem 0;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: var(--primary);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .progress-bar.indeterminate {
+      width: 100%;
+      background: repeating-linear-gradient(
+        45deg,
+        var(--primary),
+        var(--primary) 10px,
+        var(--primary-hover) 10px,
+        var(--primary-hover) 20px
+      );
+      animation: progress-move 1.5s linear infinite;
+    }
+
+    @keyframes progress-move {
+      0% { background-position: 0 0; }
+      100% { background-position: 40px 0; }
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin: 1.25rem 0;
+    }
+
+    .metric-card {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .metric-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #032b43;
+    }
+
+    .metric-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.6rem 0.75rem;
+      text-align: left;
+    }
+
+    th {
+      background: #f1f5f9;
+      font-weight: 600;
+    }
+
+    .download-group {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Revisor de CRF · Servidor Interno</h1>
+      <p class="subtitle">Motor híbrido determinístico local para documentos Word DOCX de auditoría</p>
+    </header>
+
+    <main>
+      <!-- Panel de carga de documento -->
+      <section id="upload-section" class="card" aria-labelledby="upload-title">
+        <h2 id="upload-title" style="font-size: 1.25rem; margin-bottom: 1rem;">Cargar Documento para Revisión</h2>
+
+        <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Seleccionar o arrastrar archivo DOCX">
+          <p style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem;">Arrastre su archivo DOCX aquí</p>
+          <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">o haga clic para seleccionarlo de su equipo</p>
+          <span class="btn btn-secondary">Examinar archivos</span>
+          <input type="file" id="file-input" class="file-input" accept=".docx" aria-label="Archivo DOCX de entrada">
+        </div>
+
+        <div id="selected-file-box" class="hidden" style="margin-top: 1rem;">
+          <p>Archivo seleccionado: <span id="selected-file-name" class="file-info"></span> (<span id="selected-file-size"></span>)</p>
+          <div class="actions-bar">
+            <button id="btn-upload" class="btn btn-primary">Iniciar Revisión Determinística</button>
+            <button id="btn-cancel-select" class="btn btn-outline">Cambiar archivo</button>
+          </div>
+        </div>
+
+        <div id="upload-error" class="alert alert-error hidden" role="alert" style="margin-top: 1rem;"></div>
+      </section>
+
+      <!-- Panel de progreso del trabajo -->
+      <section id="status-section" class="card hidden" aria-labelledby="status-title" aria-live="polite">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <h2 id="status-title" style="font-size: 1.25rem;">Estado de la Revisión</h2>
+          <span id="status-badge" class="status-badge status-recibido">Recibido</span>
+        </div>
+
+        <p id="status-message" style="color: var(--text-muted); font-size: 0.95rem;">El documento ha sido cargado y espera su turno de análisis.</p>
+        
+        <div class="progress-bar-container">
+          <div id="progress-bar" class="progress-bar indeterminate"></div>
+        </div>
+
+        <p style="font-size: 0.85rem; color: var(--text-muted);">
+          Identificador del trabajo: <code id="job-id-display"></code>
+        </p>
+      </section>
+
+      <!-- Panel de resultados -->
+      <section id="results-section" class="card hidden" aria-labelledby="results-title">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h2 id="results-title" style="font-size: 1.35rem; color: #032b43;">Resultados de la Revisión</h2>
+          <span class="status-badge status-terminado">Completado</span>
+        </div>
+
+        <div id="results-summary-box">
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div id="metric-alerts" class="metric-value">0</div>
+              <div class="metric-label">Alertas detectadas</div>
+            </div>
+            <div class="metric-card">
+              <div id="metric-evaluated" class="metric-value">0</div>
+              <div class="metric-label">Cálculos evaluados</div>
+            </div>
+            <div class="metric-card">
+              <div id="metric-excluded" class="metric-value">0</div>
+              <div class="metric-label">Cálculos excluidos</div>
+            </div>
+            <div class="metric-card">
+              <div id="metric-duration" class="metric-value">0s</div>
+              <div class="metric-label">Tiempo de ejecución</div>
+            </div>
+          </div>
+
+          <div style="margin: 1.5rem 0;">
+            <h3 style="font-size: 1.05rem; margin-bottom: 0.5rem;">Desglose por Regla Determinística</h3>
+            <div id="rules-table-container"></div>
+          </div>
+
+          <h3 style="font-size: 1.05rem; margin-top: 1.5rem; margin-bottom: 0.5rem;">Descarga y Consulta de Entregables</h3>
+          <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Los archivos generados son independientes y el documento original no fue modificado.
+          </p>
+
+          <div class="download-group">
+            <a id="link-view-html" class="btn btn-primary" target="_blank" rel="noopener">Abrir Reporte Interactivo HTML</a>
+            <a id="link-download-docx" class="btn btn-secondary">Descargar DOCX Comentado</a>
+            <a id="link-download-html" class="btn btn-outline">Descargar Reporte HTML</a>
+            <a id="link-download-json" class="btn btn-outline">Descargar JSON</a>
+          </div>
+
+          <div style="margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+            <button id="btn-restart" class="btn btn-outline">Revisar otro documento</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Panel de error -->
+      <section id="error-section" class="card hidden" aria-labelledby="error-title">
+        <h2 id="error-title" style="font-size: 1.25rem; color: var(--error); margin-bottom: 0.5rem;">Error en el Procesamiento</h2>
+        <div id="job-error-message" class="alert alert-error"></div>
+        <button id="btn-error-retry" class="btn btn-secondary" style="margin-top: 1rem;">Intentar nuevamente</button>
+      </section>
+    </main>
+
+    <footer>
+      <p>Revisor-CRF · Procesamiento local seguro · Conforme al esquema review-1.1</p>
+      <p style="font-size: 0.75rem; margin-top: 0.25rem;">Los archivos se eliminan automáticamente del servidor según la política de retención configurada.</p>
+    </footer>
+  </div>
+
+  <script>
+    // Variables de estado
+    let selectedFile = null;
+    let currentJobId = null;
+    let pollInterval = null;
+    const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
+
+    // Elementos del DOM
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("file-input");
+    const selectedFileBox = document.getElementById("selected-file-box");
+    const selectedFileName = document.getElementById("selected-file-name");
+    const selectedFileSize = document.getElementById("selected-file-size");
+    const btnUpload = document.getElementById("btn-upload");
+    const btnCancelSelect = document.getElementById("btn-cancel-select");
+    const uploadError = document.getElementById("upload-error");
+
+    const uploadSection = document.getElementById("upload-section");
+    const statusSection = document.getElementById("status-section");
+    const statusBadge = document.getElementById("status-badge");
+    const statusMessage = document.getElementById("status-message");
+    const jobIdDisplay = document.getElementById("job-id-display");
+
+    const resultsSection = document.getElementById("results-section");
+    const errorSection = document.getElementById("error-section");
+    const jobErrorMessage = document.getElementById("job-error-message");
+
+    // Formatear bytes a texto legible
+    function formatBytes(bytes) {
+      if (bytes === 0) return "0 Bytes";
+      const k = 1024;
+      const sizes = ["Bytes", "KB", "MB", "GB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+    }
+
+    function showUploadError(msg) {
+      uploadError.textContent = msg;
+      uploadError.classList.remove("hidden");
+    }
+
+    function clearUploadError() {
+      uploadError.textContent = "";
+      uploadError.classList.add("hidden");
+    }
+
+    function handleFile(file) {
+      clearUploadError();
+      if (!file) return;
+
+      if (!file.name.toLowerCase().endsWith(".docx")) {
+        showUploadError("El archivo seleccionado no es un documento Word (.docx).");
+        return;
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        showUploadError(`El archivo excede el tamaño máximo permitido (${formatBytes(MAX_FILE_SIZE)}).`);
+        return;
+      }
+
+      selectedFile = file;
+      selectedFileName.textContent = file.name;
+      selectedFileSize.textContent = formatBytes(file.size);
+      dropzone.classList.add("hidden");
+      selectedFileBox.classList.remove("hidden");
+    }
+
+    // Eventos drag and drop
+    dropzone.addEventListener("click", () => fileInput.click());
+    dropzone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        fileInput.click();
+      }
+    });
+
+    fileInput.addEventListener("change", (e) => {
+      if (e.target.files.length > 0) {
+        handleFile(e.target.files[0]);
+      }
+    });
+
+    ["dragenter", "dragover"].forEach(event => {
+      dropzone.addEventListener(event, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add("dragover");
+      });
+    });
+
+    ["dragleave", "drop"].forEach(event => {
+      dropzone.addEventListener(event, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove("dragover");
+      });
+    });
+
+    dropzone.addEventListener("drop", (e) => {
+      const dt = e.dataTransfer;
+      if (dt.files && dt.files.length > 0) {
+        handleFile(dt.files[0]);
+      }
+    });
+
+    btnCancelSelect.addEventListener("click", () => {
+      selectedFile = null;
+      fileInput.value = "";
+      selectedFileBox.classList.add("hidden");
+      dropzone.classList.remove("hidden");
+      clearUploadError();
+    });
+
+    // Subir documento e iniciar trabajo
+    btnUpload.addEventListener("click", async () => {
+      if (!selectedFile) return;
+
+      btnUpload.disabled = true;
+      btnUpload.textContent = "Cargando archivo...";
+      clearUploadError();
+
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      try {
+        const response = await fetch("/api/jobs", {
+          method: "POST",
+          body: formData
+        });
+
+        if (response.status === 503) {
+          const errData = await response.json().catch(() => ({}));
+          showUploadError(errData.detail || "El servidor está ocupado procesando otras revisiones. Intente en unos momentos.");
+          btnUpload.disabled = false;
+          btnUpload.textContent = "Iniciar Revisión Determinística";
+          return;
+        }
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          showUploadError(errData.detail || `Error al subir el archivo (HTTP ${response.status}).`);
+          btnUpload.disabled = false;
+          btnUpload.textContent = "Iniciar Revisión Determinística";
+          return;
+        }
+
+        const data = await response.json();
+        currentJobId = data.job_id;
+
+        // Cambiar vista al estado de progreso
+        uploadSection.classList.add("hidden");
+        statusSection.classList.remove("hidden");
+        jobIdDisplay.textContent = currentJobId;
+
+        startPolling(currentJobId);
+
+      } catch (err) {
+        showUploadError("Error de comunicación con el servidor. Verifique la conexión.");
+        btnUpload.disabled = false;
+        btnUpload.textContent = "Iniciar Revisión Determinística";
+      }
+    });
+
+    // Monitoreo de estado mediante sondeo
+    function startPolling(jobId) {
+      if (pollInterval) clearInterval(pollInterval);
+
+      pollInterval = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/jobs/${jobId}`);
+          if (!response.ok) {
+            throw new Error(`Error en sondeo: ${response.status}`);
+          }
+          const job = await response.json();
+          updateJobUI(job);
+        } catch (err) {
+          console.error("Fallo al consultar estado del trabajo:", err);
+        }
+      }, 1000);
+    }
+
+    function updateJobUI(job) {
+      statusBadge.className = "status-badge status-" + job.status;
+      statusBadge.textContent = job.status.toUpperCase();
+
+      if (job.status === "recibido") {
+        statusMessage.textContent = "Archivo recibido. En espera de ranura de procesamiento...";
+      } else if (job.status === "procesando") {
+        statusMessage.textContent = "Ejecutando el motor de validaciones determinísticas sobre el documento...";
+      } else if (job.status === "terminado") {
+        clearInterval(pollInterval);
+        statusSection.classList.add("hidden");
+        showResults(job);
+      } else if (job.status === "fallido") {
+        clearInterval(pollInterval);
+        statusSection.classList.add("hidden");
+        showError(job.error || "Ocurrió un error inesperado durante el procesamiento del documento.");
+      }
+    }
+
+    function showResults(job) {
+      const summary = job.summary || {};
+      document.getElementById("metric-alerts").textContent = summary.alerts_count ?? 0;
+      document.getElementById("metric-evaluated").textContent = summary.evaluated ?? 0;
+      document.getElementById("metric-excluded").textContent = summary.excluded ?? 0;
+      document.getElementById("metric-duration").textContent = (summary.duration_seconds ?? 0) + "s";
+
+      // Renderizar tabla de reglas
+      const byRule = summary.by_rule || {};
+      const container = document.getElementById("rules-table-container");
+      const rules = Object.keys(byRule);
+
+      if (rules.length === 0) {
+        container.innerHTML = "<p style='color: var(--text-muted); font-style: italic;'>No se generaron alertas para las reglas evaluadas.</p>";
+      } else {
+        let html = "<table><thead><tr><th>Regla</th><th>Alertas</th></tr></thead><tbody>";
+        rules.forEach(rule => {
+          html += `<tr><td><strong>${escapeHtml(rule)}</strong></td><td>${byRule[rule]}</td></tr>`;
+        });
+        html += "</tbody></table>";
+        container.innerHTML = html;
+      }
+
+      // Configurar enlaces de descarga
+      document.getElementById("link-view-html").href = `/api/jobs/${job.job_id}/view/html`;
+      document.getElementById("link-download-docx").href = `/api/jobs/${job.job_id}/download/docx`;
+      document.getElementById("link-download-html").href = `/api/jobs/${job.job_id}/download/html`;
+      document.getElementById("link-download-json").href = `/api/jobs/${job.job_id}/download/json`;
+
+      resultsSection.classList.remove("hidden");
+    }
+
+    function showError(message) {
+      jobErrorMessage.textContent = message;
+      errorSection.classList.remove("hidden");
+    }
+
+    function resetToUpload() {
+      if (pollInterval) clearInterval(pollInterval);
+      selectedFile = null;
+      currentJobId = null;
+      fileInput.value = "";
+      btnUpload.disabled = false;
+      btnUpload.textContent = "Iniciar Revisión Determinística";
+      clearUploadError();
+
+      selectedFileBox.classList.add("hidden");
+      dropzone.classList.remove("hidden");
+      statusSection.classList.add("hidden");
+      resultsSection.classList.add("hidden");
+      errorSection.classList.add("hidden");
+      uploadSection.classList.remove("hidden");
+    }
+
+    document.getElementById("btn-restart").addEventListener("click", resetToUpload);
+    document.getElementById("btn-error-retry").addEventListener("click", resetToUpload);
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
+
