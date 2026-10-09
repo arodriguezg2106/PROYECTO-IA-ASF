@@ -28,6 +28,10 @@ from revisor_web.validation import (
 )
 
 
+TEST_USER = "ASF\\revisor.uno"
+TEST_HEADERS = {"X-Forwarded-User": TEST_USER}
+
+
 @pytest.fixture
 def synthetic_valid_docx(tmp_path: Path) -> Path:
     """Genera un documento DOCX sintético válido con una discrepancia para auditoría."""
@@ -63,9 +67,10 @@ def test_app_and_client(tmp_path: Path):
         cleanup_interval_seconds=1,
         max_concurrent_jobs=2,
         max_queue_size=2,
+        trusted_proxy_hosts=("testclient",),
     )
     app = create_app(cfg)
-    client = TestClient(app)
+    client = TestClient(app, headers=TEST_HEADERS)
     return app, client, jobs_dir
 
 
@@ -145,9 +150,9 @@ def test_upload_empty_file(test_app_and_client):
 def test_upload_file_too_large(tmp_path: Path):
     """Rechazo con código 413 si excede el tamaño máximo configurado."""
     jobs_dir = tmp_path / "web_jobs"
-    cfg = WebConfig(jobs_dir=jobs_dir, max_file_size_mb=1)
+    cfg = WebConfig(jobs_dir=jobs_dir, max_file_size_mb=1, trusted_proxy_hosts=("testclient",))
     app = create_app(cfg)
-    client = TestClient(app)
+    client = TestClient(app, headers=TEST_HEADERS)
 
     large_payload = b"PK\x03\x04" + b"A" * (2 * 1024 * 1024)
     files = {"file": ("grande.docx", large_payload, "application/octet-stream")}
@@ -257,7 +262,7 @@ def test_download_before_finished_returns_409(test_app_and_client):
     """Comprueba que no se permitan descargas antes de que el trabajo termine."""
     _, client, jobs_dir = test_app_and_client
     storage = JobStorage(jobs_dir)
-    meta = storage.create_job("test.docx", 100)
+    meta = storage.create_job("test.docx", 100, owner=TEST_USER.casefold())
     job_id = meta["job_id"]
 
     resp = client.get(f"/api/jobs/{job_id}/download/json")
@@ -303,9 +308,14 @@ def test_ttl_cleanup(tmp_path: Path):
 def test_server_saturation_rejection(tmp_path: Path):
     """Verifica el rechazo HTTP 503 cuando se excede la concurrencia y cola."""
     jobs_dir = tmp_path / "web_jobs"
-    cfg = WebConfig(jobs_dir=jobs_dir, max_concurrent_jobs=1, max_queue_size=0)
+    cfg = WebConfig(
+        jobs_dir=jobs_dir,
+        max_concurrent_jobs=1,
+        max_queue_size=0,
+        trusted_proxy_hosts=("testclient",),
+    )
     app = create_app(cfg)
-    client = TestClient(app)
+    client = TestClient(app, headers=TEST_HEADERS)
 
     # Forzar estado de saturación en el servicio
     app.state.service._active_jobs = 1
@@ -414,3 +424,162 @@ def test_storage_delete_job_strict_uuid(tmp_path: Path):
     assert storage.delete_job("invalido_no_hex") is False
 
 
+def test_authentication_is_required_except_health(tmp_path: Path):
+    """La salud es publica, pero la interfaz y API exigen identidad del proxy."""
+    cfg = WebConfig(jobs_dir=tmp_path / "jobs", trusted_proxy_hosts=("testclient",))
+    client = TestClient(create_app(cfg))
+
+    assert client.get("/api/health").status_code == 200
+    unauthorized = client.get("/")
+    assert unauthorized.status_code == 401
+    assert unauthorized.headers["www-authenticate"] == "Negotiate"
+
+
+def test_forwarded_identity_is_rejected_from_untrusted_peer(tmp_path: Path):
+    """Una cabecera inventada por un cliente no sustituye a IIS/WIA."""
+    cfg = WebConfig(jobs_dir=tmp_path / "jobs", trusted_proxy_hosts=("127.0.0.1",))
+    client = TestClient(create_app(cfg), headers=TEST_HEADERS)
+
+    response = client.get("/")
+    assert response.status_code == 403
+    assert "proxy confiable" in response.json()["detail"]
+
+
+def test_job_ownership_hides_status_view_and_download(test_app_and_client, synthetic_valid_docx: Path):
+    """Un segundo usuario no puede descubrir ni recuperar artefactos ajenos."""
+    _, owner_client, _ = test_app_and_client
+    response = owner_client.post(
+        "/api/jobs",
+        files={"file": ("propio.docx", synthetic_valid_docx.read_bytes(), "application/octet-stream")},
+    )
+    job_id = response.json()["job_id"]
+    other_headers = {"X-Forwarded-User": "ASF\\revisor.dos"}
+
+    for route in (
+        f"/api/jobs/{job_id}",
+        f"/api/jobs/{job_id}/view/html",
+        f"/api/jobs/{job_id}/download/json",
+    ):
+        denied = owner_client.get(route, headers=other_headers)
+        assert denied.status_code == 404
+        assert denied.json()["detail"] == "Trabajo no encontrado."
+
+
+def test_security_headers_are_applied(test_app_and_client):
+    """Las respuestas, incluidos errores, llevan defensas HTTP basicas."""
+    _, client, _ = test_app_and_client
+    response = client.get("/")
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "SAMEORIGIN"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert response.headers["cache-control"] == "no-store"
+    assert "object-src 'none'" in response.headers["content-security-policy"]
+
+
+def test_startup_recovers_interrupted_jobs(tmp_path: Path):
+    """Un reinicio convierte estados transitorios en fallos recuperables."""
+    jobs_dir = tmp_path / "jobs"
+    storage = JobStorage(jobs_dir)
+    received = storage.create_job("uno.docx", 10, owner=TEST_USER.casefold())
+    processing = storage.create_job("dos.docx", 10, owner=TEST_USER.casefold())
+    storage.update_job(processing["job_id"], status="procesando")
+    cfg = WebConfig(jobs_dir=jobs_dir, trusted_proxy_hosts=("testclient",))
+
+    with TestClient(create_app(cfg), headers=TEST_HEADERS) as client:
+        assert client.get("/api/health").status_code == 200
+
+    for job_id in (received["job_id"], processing["job_id"]):
+        meta = storage.get_job(job_id)
+        assert meta["status"] == "fallido"
+        assert "reinicio" in meta["error"]
+
+
+def test_finding_decision_is_validated_and_owned(test_app_and_client, synthetic_valid_docx: Path):
+    """Las decisiones solo aceptan estados previstos y hallazgos reales del propietario."""
+    _, client, jobs_dir = test_app_and_client
+    created = client.post(
+        "/api/jobs",
+        files={"file": ("decision.docx", synthetic_valid_docx.read_bytes(), "application/octet-stream")},
+    )
+    job_id = created.json()["job_id"]
+    for _ in range(50):
+        meta = client.get(f"/api/jobs/{job_id}").json()
+        if meta["status"] in {"terminado", "fallido"}:
+            break
+        time.sleep(0.1)
+    report = __import__("json").loads((jobs_dir / job_id / "report.json").read_text(encoding="utf-8"))
+    finding_id = report["alerts"][0]["id"]
+
+    accepted = client.post(
+        f"/api/jobs/{job_id}/findings/{finding_id}/decision",
+        json={"status": "confirmed", "comment": "Confirmado por cotejo."},
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["reviewer"] == TEST_USER.casefold()
+    assert accepted.json()["status"] == "confirmed"
+
+    invalid_status = client.post(
+        f"/api/jobs/{job_id}/findings/{finding_id}/decision",
+        json={"status": "approved"},
+    )
+    assert invalid_status.status_code == 422
+    too_long = client.post(
+        f"/api/jobs/{job_id}/findings/{finding_id}/decision",
+        json={"status": "confirmed", "comment": "x" * 501},
+    )
+    assert too_long.status_code == 422
+    missing = client.post(
+        f"/api/jobs/{job_id}/findings/no-existe/decision",
+        json={"status": "rejected"},
+    )
+    assert missing.status_code == 404
+    denied = client.post(
+        f"/api/jobs/{job_id}/findings/{finding_id}/decision",
+        headers={"X-Forwarded-User": "ASF\\revisor.dos"},
+        json={"status": "rejected"},
+    )
+    assert denied.status_code == 404
+
+
+def test_pilot_telemetry_is_sanitized_and_computes_metrics(test_app_and_client, caplog):
+    """La bitacora permite medir el piloto sin registrar la identidad en claro."""
+    import logging
+
+    app, client, _ = test_app_and_client
+    with caplog.at_level(logging.INFO, logger="revisor_web.audit"):
+        response = client.get("/")
+        assert response.status_code == 200
+        app.state.telemetry.record(
+            "job_completed",
+            job_id="a" * 32,
+            identity=TEST_USER.casefold(),
+            status="terminado",
+            duration_seconds=2.5,
+        )
+        app.state.telemetry.record("job_saturated", identity=TEST_USER.casefold())
+        app.state.telemetry.record("job_purged", count=3)
+
+    snapshot = app.state.telemetry.snapshot()
+    assert snapshot["success_rate"] == 1.0
+    assert snapshot["processing_p95_seconds"] == 2.5
+    assert snapshot["saturation_rejections"] == 1
+    assert snapshot["purged_jobs"] == 3
+    logs = " ".join(record.message for record in caplog.records)
+    assert TEST_USER.casefold() not in logs
+    assert '"user_hash":"' in logs
+
+
+def test_corrupt_decision_store_is_not_silently_overwritten(tmp_path: Path):
+    """Una bitácora ilegible exige intervención y conserva sus bytes originales."""
+    storage = JobStorage(tmp_path / "jobs")
+    meta = storage.create_job("prueba.docx", 10, owner=TEST_USER.casefold())
+    path = storage.base_dir / meta["job_id"] / "decisions.json"
+    original = b"{registro-invalido"
+    path.write_bytes(original)
+
+    with pytest.raises(ValueError, match="no es legible"):
+        storage.save_decision(
+            meta["job_id"], "finding-1",
+            {"status": "confirmed", "comment": None, "reviewer": TEST_USER.casefold()},
+        )
+    assert path.read_bytes() == original

@@ -139,3 +139,38 @@ El backend de este MVP opera como servicio interno local (`127.0.0.1:8000`). En 
   - Almacenamiento efímero acotado: cada trabajo retiene el DOCX de entrada (~2-10 MB), JSON (~1 MB), HTML (~1 MB) y DOCX comentado (~2-10 MB).
   - Típicamente $\le 25\text{ MB}$ por trabajo. Con 10 trabajos activos en ventana TTL de 30 minutos, la ocupación en disco temporal se estima en $\approx 250\text{ MB}$, siendo liberada de forma automática tras el vencimiento del plazo configurado.
 
+---
+
+## 8. Identidad, Propiedad y Recuperación del Piloto
+
+- Todas las rutas, salvo `GET /api/health`, requieren la cabecera
+  `X-Forwarded-User`. El backend solo la acepta cuando la conexión inmediata
+  procede de `REVISOR_WEB_TRUSTED_PROXY_HOSTS` o `CRF_TRUSTED_PROXY_IPS`
+  (por defecto, loopback). IIS debe
+  reemplazar cualquier valor aportado por el cliente y conectar al backend por
+  loopback; el puerto de FastAPI no debe publicarse en la red.
+- La identidad normalizada queda asociada al trabajo al recibirlo. Estado,
+  vista HTML, descargas y decisiones devuelven `404` si la identidad solicitante
+  no es la propietaria, evitando revelar la existencia de UUID ajenos.
+- En el arranque, los trabajos que quedaron en `recibido` o `procesando` se
+  marcan `fallido` con un motivo técnico sanitizado. Después se aplica la purga
+  normal por TTL.
+- El middleware agrega CSP, `nosniff`, `SAMEORIGIN`, política de referente,
+  permisos restringidos y `Cache-Control: no-store` a todas las respuestas.
+
+## 9. Decisiones Humanas del Piloto
+
+`POST /api/jobs/{job_id}/findings/{finding_id}/decision` acepta exclusivamente
+`confirmed`, `rejected`, `not_evaluable` o `audit_team_review`, con comentario
+opcional de hasta 500 caracteres. El hallazgo debe existir en el JSON generado
+y pertenecer al usuario. Las decisiones se guardan localmente sin copiar la
+evidencia documental y nunca modifican el informe ni el DOCX. `JobRepository`
+define el contrato mínimo para reemplazar esta persistencia por SQL Server una
+vez superada la compuerta institucional.
+
+La telemetría del piloto conserva contadores en memoria y emite eventos JSON
+sanitizados para carga, consulta, descarga, decisión, saturación, finalización,
+recuperación y purga. Incluye UUID, estado, duración y un hash de identidad con
+sal aleatoria por proceso; jamás incluye nombres de archivo, comentarios ni
+texto documental. Con esos datos se calculan tasa de éxito, p95 de proceso,
+rechazos por saturación y total purgado.

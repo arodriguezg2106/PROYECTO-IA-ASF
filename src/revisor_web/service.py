@@ -14,6 +14,7 @@ from revisor_crf.review import review_document
 
 from .config import WebConfig
 from .storage import JobStorage
+from .telemetry import PilotTelemetry
 
 logger = logging.getLogger("revisor_web.service")
 
@@ -25,9 +26,10 @@ class ServerBusyError(Exception):
 class ReviewService:
     """Gestiona el encolado y procesamiento determinístico de documentos."""
 
-    def __init__(self, config: WebConfig, storage: JobStorage) -> None:
+    def __init__(self, config: WebConfig, storage: JobStorage, telemetry: PilotTelemetry | None = None) -> None:
         self.config = config
         self.storage = storage
+        self.telemetry = telemetry or PilotTelemetry()
         self._semaphore = asyncio.Semaphore(config.max_concurrent_jobs)
         self._active_jobs: int = 0
         self._queued_jobs: int = 0
@@ -105,7 +107,14 @@ class ReviewService:
                 "duration_seconds": round(duration, 3),
             }
 
-            self.storage.update_job(job_id, status="terminado", summary=summary)
+            completed_meta = self.storage.update_job(job_id, status="terminado", summary=summary)
+            self.telemetry.record(
+                "job_completed",
+                job_id=job_id,
+                identity=completed_meta.get("owner"),
+                status="terminado",
+                duration_seconds=duration,
+            )
             logger.info(
                 "Trabajo %s completado con éxito en %.2f s (alertas detectadas: %d)",
                 job_id,
@@ -118,5 +127,11 @@ class ReviewService:
             # Se registra únicamente el tipo de excepción; nunca el texto del documento
             logger.error("Fallo al procesar trabajo %s tras %.2f s: %s", job_id, duration, type(exc).__name__)
             clean_error = f"Error durante la revisión determinística: {type(exc).__name__}"
-            self.storage.update_job(job_id, status="fallido", error=clean_error)
-
+            failed_meta = self.storage.update_job(job_id, status="fallido", error=clean_error)
+            self.telemetry.record(
+                "job_failed",
+                job_id=job_id,
+                identity=failed_meta.get("owner"),
+                status="fallido",
+                duration_seconds=duration,
+            )

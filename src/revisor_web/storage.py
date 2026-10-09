@@ -5,12 +5,22 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Protocol
 
 logger = logging.getLogger("revisor_web.storage")
+
+
+class JobRepository(Protocol):
+    """Contrato minimo para sustituir el almacenamiento piloto por SQL Server."""
+
+    def create_job(self, original_filename: str, file_size: int, owner: str) -> dict: ...
+    def get_job(self, job_id: str) -> dict | None: ...
+    def save_decision(self, job_id: str, finding_id: str, decision: dict) -> dict: ...
 
 
 class JobStorage:
@@ -19,6 +29,7 @@ class JobStorage:
     def __init__(self, base_dir: Path | str) -> None:
         self.base_dir = Path(base_dir).resolve()
         self.base_dir.mkdir(parents=True, exist_ok=True)
+        self._write_lock = threading.RLock()
 
     def _job_dir(self, job_id: str) -> Path:
         # Validación de seguridad: el job_id debe ser un UUID hexadecimal estricto
@@ -44,7 +55,7 @@ class JobStorage:
             return False
         return False
 
-    def create_job(self, original_filename: str, file_size: int) -> dict:
+    def create_job(self, original_filename: str, file_size: int, owner: str | None = None) -> dict:
         """Crea un directorio temporal y registra los metadatos iniciales del trabajo."""
         job_id = uuid.uuid4().hex
         job_dir = self._job_dir(job_id)
@@ -59,11 +70,61 @@ class JobStorage:
             "created_timestamp": time.time(),
             "original_filename": Path(original_filename).name,
             "file_size": file_size,
+            "owner": owner,
             "error": None,
             "summary": None,
         }
         self._write_meta(job_dir, metadata)
         return metadata
+
+    def recover_interrupted_jobs(self) -> list[str]:
+        """Marca como fallidos trabajos que un reinicio dejo sin terminar."""
+        recovered: list[str] = []
+        if not self.base_dir.exists():
+            return recovered
+        for item in self.base_dir.iterdir():
+            if not item.is_dir():
+                continue
+            meta = self.get_job(item.name)
+            if meta and meta.get("status") in {"recibido", "procesando"}:
+                self.update_job(
+                    item.name,
+                    status="fallido",
+                    error="El procesamiento fue interrumpido por un reinicio del servicio.",
+                )
+                recovered.append(item.name)
+        return recovered
+
+    def save_decision(self, job_id: str, finding_id: str, decision: dict) -> dict:
+        """Guarda una decision humana local sin copiar evidencia documental."""
+        job_dir = self._job_dir(job_id)
+        if not self.get_job(job_id):
+            raise KeyError(f"Trabajo no encontrado: {job_id}")
+        decisions_path = job_dir / "decisions.json"
+        with self._write_lock:
+            decisions: dict[str, dict] = {}
+            if decisions_path.exists():
+                try:
+                    loaded = json.loads(decisions_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError) as exc:
+                    raise ValueError("El registro local de decisiones no es legible.") from exc
+                if not isinstance(loaded, dict):
+                    raise ValueError("El registro local de decisiones no tiene la estructura esperada.")
+                decisions = loaded
+            record = {
+                "finding_id": finding_id,
+                "status": decision["status"],
+                "comment": decision.get("comment"),
+                "reviewer": decision["reviewer"],
+                "decided_at": datetime.now(timezone.utc).isoformat(),
+            }
+            decisions[finding_id] = record
+            temporary_path = decisions_path.with_suffix(".tmp")
+            temporary_path.write_text(
+                json.dumps(decisions, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            temporary_path.replace(decisions_path)
+        return record
 
     def save_input_file(self, job_id: str, content: bytes) -> Path:
         """Almacena el archivo DOCX de entrada en el directorio del trabajo."""
@@ -104,19 +165,20 @@ class JobStorage:
     ) -> dict:
         """Actualiza el estado y metadatos del trabajo."""
         job_dir = self._job_dir(job_id)
-        metadata = self.get_job(job_id)
-        if metadata is None:
-            raise KeyError(f"Trabajo no encontrado: {job_id}")
+        with self._write_lock:
+            metadata = self.get_job(job_id)
+            if metadata is None:
+                raise KeyError(f"Trabajo no encontrado: {job_id}")
 
-        metadata["updated_at"] = datetime.now(timezone.utc).isoformat()
-        if status is not None:
-            metadata["status"] = status
-        if error is not None:
-            metadata["error"] = error
-        if summary is not None:
-            metadata["summary"] = summary
+            metadata["updated_at"] = datetime.now(timezone.utc).isoformat()
+            if status is not None:
+                metadata["status"] = status
+            if error is not None:
+                metadata["error"] = error
+            if summary is not None:
+                metadata["summary"] = summary
 
-        self._write_meta(job_dir, metadata)
+            self._write_meta(job_dir, metadata)
         return metadata
 
     def get_artifact_path(self, job_id: str, artifact_type: str) -> Path | None:
@@ -173,5 +235,7 @@ class JobStorage:
 
     def _write_meta(self, job_dir: Path, data: dict) -> None:
         meta_path = job_dir / "meta.json"
-        meta_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-
+        temporary_path = job_dir / "meta.tmp"
+        with self._write_lock:
+            temporary_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            temporary_path.replace(meta_path)

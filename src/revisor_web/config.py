@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -27,6 +27,23 @@ class WebConfig:
     max_concurrent_jobs: int = int(os.getenv("REVISOR_WEB_MAX_CONCURRENT_JOBS", "2"))
     max_queue_size: int = int(os.getenv("REVISOR_WEB_MAX_QUEUE_SIZE", "4"))
 
+    # La identidad solo puede ser inyectada por el proxy inverso conectado
+    # directamente al backend. No se confia en esta cabecera desde clientes de red.
+    identity_header: str = os.getenv(
+        "REVISOR_WEB_IDENTITY_HEADER",
+        os.getenv("CRF_PROXY_USER_HEADER", "X-Forwarded-User"),
+    )
+    trusted_proxy_hosts: tuple[str, ...] = field(
+        default_factory=lambda: tuple(
+            host.strip()
+            for host in os.getenv(
+                "REVISOR_WEB_TRUSTED_PROXY_HOSTS",
+                os.getenv("CRF_TRUSTED_PROXY_IPS", "127.0.0.1,::1"),
+            ).split(",")
+            if host.strip()
+        )
+    )
+
     # Directorio de almacenamiento temporal de trabajos
     # Por defecto se utiliza un directorio seguro y excluido por .gitignore
     jobs_dir: Path = Path(
@@ -46,4 +63,3 @@ class WebConfig:
 
 
 config = WebConfig()
-

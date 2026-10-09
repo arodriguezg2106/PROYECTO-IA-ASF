@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from pydantic import BaseModel, Field
 
 from .config import WebConfig, config as default_config
 from .service import ReviewService, ServerBusyError
 from .storage import JobStorage
+from .telemetry import PilotTelemetry
 from .validation import (
     CorruptDocumentError,
     FileTooLargeError,
@@ -37,11 +41,38 @@ if not logger.handlers:
     logger.setLevel(logging.INFO)
 
 
+ALLOWED_DECISION_STATUSES = {
+    "confirmed",
+    "rejected",
+    "not_evaluable",
+    "audit_team_review",
+}
+
+
+class FindingDecision(BaseModel):
+    """Decision humana; nunca modifica el hallazgo ni el documento."""
+
+    status: str
+    comment: str | None = Field(default=None, max_length=500)
+
+
+def _validated_identity(raw_identity: str | None) -> str | None:
+    if raw_identity is None:
+        return None
+    identity = raw_identity.strip()
+    if not identity or len(identity) > 256 or "," in identity:
+        return None
+    if not re.fullmatch(r"[A-Za-z0-9._@\\\-]+", identity):
+        return None
+    return identity.casefold()
+
+
 def create_app(cfg: WebConfig | None = None) -> FastAPI:
     """Fábrica de la aplicación web interna."""
     app_config = cfg or default_config
     storage = JobStorage(app_config.jobs_dir)
-    service = ReviewService(app_config, storage)
+    telemetry = PilotTelemetry()
+    service = ReviewService(app_config, storage, telemetry)
 
     cleanup_task: asyncio.Task | None = None
 
@@ -51,6 +82,7 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
                 await asyncio.sleep(app_config.cleanup_interval_seconds)
                 deleted = storage.cleanup_expired_jobs(app_config.job_ttl_seconds)
                 if deleted:
+                    telemetry.record("job_purged", count=len(deleted))
                     logger.info("Limpieza por TTL: eliminados %d trabajos expirados", len(deleted))
             except asyncio.CancelledError:
                 break
@@ -59,8 +91,13 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        recovered = storage.recover_interrupted_jobs()
+        if recovered:
+            telemetry.record("job_recovered", status="fallido", count=len(recovered))
+            logger.warning("Recuperacion inicial: marcados como fallidos %d trabajos interrumpidos", len(recovered))
         deleted = storage.cleanup_expired_jobs(app_config.job_ttl_seconds)
         if deleted:
+            telemetry.record("job_purged", count=len(deleted))
             logger.info("Limpieza inicial: eliminados %d trabajos previos", len(deleted))
 
         nonlocal cleanup_task
@@ -93,9 +130,54 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
     app.state.config = app_config
     app.state.storage = storage
     app.state.service = service
+    app.state.telemetry = telemetry
 
     templates_dir = Path(__file__).parent / "templates"
     index_html_path = templates_dir / "index.html"
+
+    @app.middleware("http")
+    async def authentication_and_security_headers(request: Request, call_next):
+        """Confia en WIA solo cuando la conexion procede del proxy configurado."""
+        if request.url.path != "/api/health":
+            peer = request.client.host if request.client else ""
+            raw_identity = request.headers.get(app_config.identity_header)
+            if peer not in app_config.trusted_proxy_hosts:
+                response = JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"detail": "La solicitud no procede de un proxy confiable."},
+                )
+            else:
+                identity = _validated_identity(raw_identity)
+                if identity is None:
+                    response = JSONResponse(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        content={"detail": "Se requiere identidad institucional autenticada."},
+                        headers={"WWW-Authenticate": "Negotiate"},
+                    )
+                else:
+                    request.state.identity = identity
+                    response = await call_next(request)
+        else:
+            response = await call_next(request)
+
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        response.headers.setdefault("Cache-Control", "no-store")
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+            "object-src 'none'; base-uri 'none'; frame-ancestors 'self'",
+        )
+        return response
+
+    def _owned_job(job_id: str, identity: str) -> dict:
+        meta = storage.get_job(job_id)
+        if not meta or meta.get("owner") != identity:
+            # 404 evita revelar a otro usuario que el UUID existe.
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trabajo no encontrado.")
+        return meta
 
     @app.get("/", response_class=HTMLResponse)
     async def index_view():
@@ -118,9 +200,10 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
         }
 
     @app.post("/api/jobs", status_code=status.HTTP_202_ACCEPTED)
-    async def create_job(file: UploadFile = File(...)):
+    async def create_job(request: Request, file: UploadFile = File(...)):
         """Carga un documento DOCX, valida su integridad y encola la revisión determinística."""
         if service.is_saturated:
+            telemetry.record("job_saturated", identity=request.state.identity, status="rechazado")
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="El servidor se encuentra saturado. Por favor intente más tarde.",
@@ -161,7 +244,7 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
         except InvalidSignatureError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
-        meta = storage.create_job(safe_filename, bytes_read)
+        meta = storage.create_job(safe_filename, bytes_read, owner=request.state.identity)
         job_id = meta["job_id"]
         input_path = storage.save_input_file(job_id, content)
 
@@ -183,6 +266,7 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
             raise
 
         logger.info("Trabajo recibido y encolado: %s (tamaño: %d bytes)", job_id, bytes_read)
+        telemetry.record("job_uploaded", job_id=job_id, identity=request.state.identity, status="recibido")
         return {
             "job_id": job_id,
             "status": "recibido",
@@ -192,23 +276,22 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
         }
 
     @app.get("/api/jobs/{job_id}")
-    async def get_job_status(job_id: str):
+    async def get_job_status(job_id: str, request: Request):
         """Consulta el estado actual, métricas o error de un trabajo."""
-        meta = storage.get_job(job_id)
-        if not meta:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trabajo no encontrado.")
+        meta = _owned_job(job_id, request.state.identity)
+        telemetry.record(
+            "job_status_viewed", job_id=job_id, identity=request.state.identity, status=meta.get("status")
+        )
         return meta
 
     @app.get("/api/jobs/{job_id}/download/{artifact}")
-    async def download_artifact(job_id: str, artifact: str):
+    async def download_artifact(job_id: str, artifact: str, request: Request):
         """Descarga los entregables generados (json, html, docx)."""
         artifact_lower = artifact.lower()
         if artifact_lower not in {"json", "html", "docx"}:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo de archivo no válido.")
 
-        meta = storage.get_job(job_id)
-        if not meta:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trabajo no encontrado.")
+        meta = _owned_job(job_id, request.state.identity)
 
         if meta.get("status") != "terminado":
             raise HTTPException(
@@ -231,6 +314,10 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
             media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             download_name = f"revision_{short_id}_comentada.docx"
 
+        telemetry.record(
+            "artifact_downloaded", job_id=job_id, identity=request.state.identity, status=artifact_lower
+        )
+
         return FileResponse(
             path=file_path,
             media_type=media_type,
@@ -238,16 +325,14 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
         )
 
     @app.get("/api/jobs/{job_id}/view/html", response_class=HTMLResponse)
-    async def view_html_report(job_id: str):
+    async def view_html_report(job_id: str, request: Request):
         """Permite visualizar en el navegador el reporte interactivo.
 
         Aplica una política estricta de aislamiento (connect-src 'none')
         que impide que scripts internos del reporte ejecuten llamadas de red
         hacia otros endpoints o servicios externos.
         """
-        meta = storage.get_job(job_id)
-        if not meta:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trabajo no encontrado.")
+        meta = _owned_job(job_id, request.state.identity)
 
         if meta.get("status") != "terminado":
             raise HTTPException(
@@ -260,6 +345,7 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reporte no encontrado.")
 
         html_content = file_path.read_text(encoding="utf-8")
+        telemetry.record("report_viewed", job_id=job_id, identity=request.state.identity, status="html")
         headers = {
             "Content-Security-Policy": (
                 "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
@@ -271,8 +357,48 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
         }
         return HTMLResponse(content=html_content, headers=headers)
 
+    @app.post("/api/jobs/{job_id}/findings/{finding_id}/decision")
+    async def save_finding_decision(
+        job_id: str, finding_id: str, payload: FindingDecision, request: Request
+    ):
+        """Registra una decision del propietario sin alterar la evidencia original."""
+        _owned_job(job_id, request.state.identity)
+        if payload.status not in ALLOWED_DECISION_STATUSES:
+            raise HTTPException(status_code=422, detail="Estado de decision no permitido.")
+
+        report_path = storage.get_artifact_path(job_id, "json")
+        if report_path is None:
+            raise HTTPException(status_code=409, detail="Los hallazgos aun no estan disponibles.")
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            raise HTTPException(status_code=500, detail="No se pudo validar el hallazgo.")
+        valid_ids = {
+            item.get("id")
+            for key in ("alerts", "editorial_findings", "semantic_suggestions")
+            for item in report.get(key, [])
+            if isinstance(item, dict) and item.get("id")
+        }
+        if finding_id not in valid_ids:
+            raise HTTPException(status_code=404, detail="Hallazgo no encontrado.")
+        try:
+            record = storage.save_decision(
+                job_id,
+                finding_id,
+                {
+                    "status": payload.status,
+                    "comment": payload.comment,
+                    "reviewer": request.state.identity,
+                },
+            )
+        except (OSError, ValueError):
+            raise HTTPException(status_code=500, detail="No se pudo guardar la decision.")
+        telemetry.record(
+            "decision_saved", job_id=job_id, identity=request.state.identity, status=payload.status
+        )
+        return record
+
     return app
 
 
 app = create_app()
-
