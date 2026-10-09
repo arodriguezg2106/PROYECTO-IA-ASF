@@ -84,6 +84,21 @@ def test_gate_failure_stops_later_provider_calls():
     assert provider.calls == 6
 
 
+def test_synthetic_screen_never_runs_or_reports_real_gate():
+    synthetic, real, rule, criteria = _inputs()
+    provider = OracleProvider(synthetic)
+    result = evaluate_model_sequence(
+        provider, synthetic, None, rule, criteria, repetitions=3, include_real=False
+    )
+    assert result["status"] == "passed"
+    assert result["evaluation_scope"] == "synthetic_screening_only"
+    assert result["real_bank_coverage"] is None
+    assert [(item["stage"], item["metrics"]["cases"]) for item in result["stages"]] == [
+        ("smoke", 2), ("hard", 10), ("final", 30),
+    ]
+    assert provider.calls == (2 + 10 + 30) * 3
+
+
 def test_real_bank_accepts_expanded_and_compact_pairs(tmp_path):
     expanded = tmp_path / "expanded.json"
     expanded.write_text(json.dumps({
@@ -143,3 +158,33 @@ def test_cli_preflight_never_constructs_provider(tmp_path):
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["status"] == "preflight_complete"
     assert payload["results"] == []
+
+
+def test_cli_synthetic_preflight_does_not_require_real_bank(tmp_path):
+    output = tmp_path / "synthetic-preflight.json"
+
+    def forbidden_factory(config):
+        raise AssertionError("El preflight no debe contactar al proveedor")
+
+    assert main([
+        "--preflight", "--synthetic-only", "--models", "qwen3.5:9b",
+        "--real-bank", str(tmp_path / "does-not-exist.json"), "--output", str(output),
+    ], provider_factory=forbidden_factory) == 0
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["evaluation_scope"] == "synthetic_screening_only"
+    assert payload["real_dataset"] is None
+    assert payload["selected_model"] is None
+    assert payload["stage_case_counts"] == {"smoke": 2, "hard": 10, "final": 30}
+
+
+def test_cli_synthetic_pass_is_screening_not_approval(tmp_path):
+    synthetic = load_context_bank("tests/data/editorial_context_cases.json")["cases"]
+    output = tmp_path / "synthetic-result.json"
+
+    assert main([
+        "--synthetic-only", "--models", "qwen3.5:9b", "--output", str(output),
+    ], provider_factory=lambda config: OracleProvider(synthetic)) == 0
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["status"] == "synthetic_screen_passed"
+    assert payload["screened_model"] == "qwen3.5:9b"
+    assert payload["selected_model"] is None

@@ -65,6 +65,12 @@ def main(argv=None, *, provider_factory=None):
                         help="Categorías reales que el proveedor declara cubrir")
     parser.add_argument("--preflight", action="store_true",
                         help="Valida registro, bancos y hardware sin contactar Ollama")
+    parser.add_argument(
+        "--synthetic-only",
+        action="store_true",
+        help=("Ejecuta solo 2+10+30 casos sinteticos. Sirve para tamizaje externo y "
+              "nunca aprueba un modelo para uso institucional."),
+    )
     parser.add_argument("--output", default="results/editorial_context/staged-model-evaluation.json")
     args = parser.parse_args(argv)
     try:
@@ -76,27 +82,35 @@ def main(argv=None, *, provider_factory=None):
         if not models:
             raise ValueError("Debe indicar al menos un modelo.")
         dataset = load_context_bank(args.dataset)
-        real_bank = load_real_paired_bank(args.real_bank)
+        real_bank = None if args.synthetic_only else load_real_paired_bank(args.real_bank)
         available = ({item.strip() for item in args.available_models.split(",") if item.strip()}
                      if args.available_models is not None else None)
         real_categories = tuple(item.strip() for item in args.real_categories.split(",") if item.strip())
         if not real_categories:
             raise ValueError("--real-categories no puede quedar vacío.")
-        stage_cases = build_stage_cases(dataset["cases"], real_bank["cases"],
-                                        real_categories=real_categories)
+        stage_cases = build_stage_cases(
+            dataset["cases"],
+            None if real_bank is None else real_bank["cases"],
+            include_real=not args.synthetic_only,
+            real_categories=real_categories,
+        )
         preflight = [_model_preflight(item, registry, args.accelerator_memory_gb, available)
                      for item in models]
         payload = {
             "schema_version": "editorial-context-model-gates-1.0",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "synthetic_dataset": dataset["schema_version"],
-            "real_dataset": real_bank.get("schema_version"),
+            "evaluation_scope": (
+                "synthetic_screening_only" if args.synthetic_only else "full_institutional"
+            ),
+            "real_dataset": None if real_bank is None else real_bank.get("schema_version"),
             "real_dataset_path_in_output": False,
             "criteria": registry["approval_criteria"],
             "stage_case_counts": {name: len(cases) for name, cases in stage_cases.items()},
             "real_categories": list(real_categories),
             "preflight": preflight,
             "results": [],
+            "screened_model": None,
             "selected_model": None,
             "status": "preflight_complete" if args.preflight else "no_model_met_criteria",
         }
@@ -115,22 +129,29 @@ def main(argv=None, *, provider_factory=None):
                 config = replace(base, ollama_enabled=True, experimental_model=True,
                                  model=check["model"], temperature=0.0)
                 result = evaluate_model_sequence(
-                    factory(config), dataset["cases"], real_bank["cases"], rule,
+                    factory(config), dataset["cases"],
+                    None if real_bank is None else real_bank["cases"], rule,
                     registry["approval_criteria"], repetitions=args.repetitions,
                     real_categories=real_categories,
+                    include_real=not args.synthetic_only,
                 )
                 payload["results"].append({"model": check["model"], **result})
             passed = [item for item in payload["results"] if item.get("status") == "passed"]
             if passed:
-                payload["selected_model"] = passed[0]["model"]
-                payload["status"] = "approved"
+                if args.synthetic_only:
+                    payload["screened_model"] = passed[0]["model"]
+                    payload["status"] = "synthetic_screen_passed"
+                else:
+                    payload["selected_model"] = passed[0]["model"]
+                    payload["status"] = "approved"
         target = Path(args.output)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"Evaluación por compuertas guardada en {target}; estado: {payload['status']}")
         if args.preflight:
             return 0 if all(item["eligible_to_run"] for item in preflight) else 2
-        return 0 if payload["selected_model"] else 2
+        return 0 if (payload["screened_model"] if args.synthetic_only
+                     else payload["selected_model"]) else 2
     except (OSError, ValueError, RuntimeError, json.JSONDecodeError, StopIteration) as exc:
         print(f"Error: {exc}")
         return 1

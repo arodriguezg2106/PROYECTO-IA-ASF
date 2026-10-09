@@ -27,6 +27,27 @@ Los umbrales no cambian entre etapas: precisión ≥0.90, exhaustividad ≥0.85,
 
 El banco real predeterminado es `results/editorial_revision_validation/paired_evaluation_bank.json`. Contiene texto institucional, debe declarar `privacy.contains_raw_institutional_text: true` y permanecer fuera de Git.
 
+## Tamizaje externo sólo con datos sintéticos
+
+Cuando se disponga de una GPU temporal fuera de la infraestructura institucional,
+se permite omitir por completo el banco real con `--synthetic-only`. Esta ruta
+ejecuta sólo las compuertas 2+10+30, deja `selected_model` en `null` y puede
+producir únicamente el estado `synthetic_screen_passed`. Por diseño no puede
+aprobar un modelo.
+
+```powershell
+$env:PYTHONPATH = "src;scripts"
+python scripts/evaluate_editorial_context.py `
+  --synthetic-only `
+  --models qwen3.5:9b `
+  --available-models qwen3.5:9b `
+  --output results/editorial_context/qwen35_9b_synthetic.json
+```
+
+La ruta guiada para Colab está en
+[`docs/colab_evaluacion_sintetica.md`](colab_evaluacion_sintetica.md). No se
+permite subir documentos, Excel ni bancos reales a ese servicio.
+
 La compuerta contextual puntúa por defecto sólo los pares adjudicados como `Ortografía o gramática` o `Coherencia o claridad`. Conserva y reporta como no compatibles, fuera del denominador, las categorías de cifras, formato y criterio técnico. Ampliar la cobertura requiere declararlo de forma explícita con `--real-categories`; no se infiere de la respuesta del modelo.
 
 ## Preflight sin Ollama

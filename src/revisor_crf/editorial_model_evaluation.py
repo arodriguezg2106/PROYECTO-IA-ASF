@@ -8,7 +8,8 @@ from .editorial_context_evaluation import evaluate_context_provider
 from .editorial_models import evaluation_passes
 
 
-STAGE_ORDER = ("smoke", "hard", "final", "real_paired")
+SYNTHETIC_STAGE_ORDER = ("smoke", "hard", "final")
+STAGE_ORDER = (*SYNTHETIC_STAGE_ORDER, "real_paired")
 DEFAULT_REAL_CATEGORIES = ("Ortografía o gramática", "Coherencia o claridad")
 
 
@@ -84,7 +85,8 @@ def _validate_real_cases(cases):
         raise ValueError("Pares reales incompletos: " + ", ".join(incomplete))
 
 
-def build_stage_cases(synthetic_cases, real_cases, *, real_categories=DEFAULT_REAL_CATEGORIES):
+def build_stage_cases(synthetic_cases, real_cases=None, *, include_real=True,
+                      real_categories=DEFAULT_REAL_CATEGORIES):
     hard = [item for item in synthetic_cases if item.get("difficulty") == "hard"]
     final = [item for item in synthetic_cases if item.get("split") == "test"]
     positives = [item for item in synthetic_cases if item.get("expected_finding")]
@@ -95,17 +97,20 @@ def build_stage_cases(synthetic_cases, real_cases, *, real_categories=DEFAULT_RE
         raise ValueError(f"La partición final requiere 30 casos; encontró {len(final)}.")
     if not positives or not negatives:
         raise ValueError("El banco sintético requiere casos positivos y negativos.")
+    stages = {
+        "smoke": [positives[0], negatives[0]],
+        "hard": hard,
+        "final": final,
+    }
+    if not include_real:
+        return stages
     _validate_real_cases(real_cases)
     supported = set(real_categories)
     evaluated_real = [item for item in real_cases if item.get("category") in supported]
     if not evaluated_real:
         raise ValueError("El banco real no contiene pares de las categorías configuradas.")
-    return {
-        "smoke": [positives[0], negatives[0]],
-        "hard": hard,
-        "final": final,
-        "real_paired": evaluated_real,
-    }
+    stages["real_paired"] = evaluated_real
+    return stages
 
 
 def aggregate_runs(runs, case_count):
@@ -133,15 +138,21 @@ def aggregate_runs(runs, case_count):
 
 
 def evaluate_model_sequence(provider, synthetic_cases, real_cases, rule, criteria, *, repetitions=3,
-                            real_categories=DEFAULT_REAL_CATEGORIES):
-    """Ejecuta las cuatro compuertas y se detiene en el primer fallo."""
+                            real_categories=DEFAULT_REAL_CATEGORIES, include_real=True):
+    """Ejecuta las compuertas solicitadas y se detiene en el primer fallo."""
     minimum = criteria["minimum_repetitions"]
     if repetitions < minimum:
         raise ValueError(f"La evaluación exige al menos {minimum} repeticiones.")
-    stage_cases = build_stage_cases(synthetic_cases, real_cases, real_categories=real_categories)
+    stage_cases = build_stage_cases(
+        synthetic_cases,
+        real_cases,
+        include_real=include_real,
+        real_categories=real_categories,
+    )
+    stage_order = STAGE_ORDER if include_real else SYNTHETIC_STAGE_ORDER
     stages = []
     stopped = False
-    for name in STAGE_ORDER:
+    for name in stage_order:
         cases = stage_cases[name]
         if stopped:
             stages.append({"stage": name, "status": "not_run", "cases": len(cases)})
@@ -151,15 +162,19 @@ def evaluate_model_sequence(provider, synthetic_cases, real_cases, rule, criteri
         passed = evaluation_passes(metrics, criteria, repetitions=repetitions)
         stages.append({"stage": name, "status": "passed" if passed else "failed", "metrics": metrics})
         stopped = not passed
-    return {
+    result = {
         "status": "passed" if not stopped else "failed",
         "repetitions": repetitions,
-        "stage_order": list(STAGE_ORDER),
+        "stage_order": list(stage_order),
         "stages": stages,
-        "real_bank_coverage": {
+        "evaluation_scope": "full_institutional" if include_real else "synthetic_screening_only",
+        "real_bank_coverage": None,
+    }
+    if include_real:
+        result["real_bank_coverage"] = {
             "total_cases": len(real_cases),
             "evaluated_cases": len(stage_cases["real_paired"]),
             "unsupported_cases": len(real_cases) - len(stage_cases["real_paired"]),
             "evaluated_categories": list(real_categories),
-        },
-    }
+        }
+    return result
