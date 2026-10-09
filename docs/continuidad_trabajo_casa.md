@@ -79,4 +79,4 @@ El último generador reconstruye el corpus local de comentarios y control de cam
 - Captura de decisiones humanas y dataset anonimizado para un futuro priorizador.
 - Extracción real de comentarios anclados y pares antes/después del control de cambios.
 
-La siguiente fase consiste en recibir `validacion_cambios_editoriales.xlsx`, incorporar las etiquetas confirmadas al conjunto de evaluación y probar un modelo contextual sobre diez casos difíciles antes de ejecutar la batería completa.
+`validacion_cambios_editoriales.xlsx` se recibió el 9 de octubre de 2026. Sus etiquetas se importan localmente con `scripts/import_revision_validation.py`; 31 de 40 casos quedaron elegibles como referencias de evaluación. El libro contiene una edición adicional en una columna fija, registrada con trazabilidad y sin reemplazar la evidencia canónica. La siguiente fase consiste en convertir las referencias aprobadas en casos de evaluación reproducibles y probar un modelo contextual candidato sobre diez casos difíciles antes de ejecutar la batería completa.

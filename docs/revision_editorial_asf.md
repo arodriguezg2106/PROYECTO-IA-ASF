@@ -43,6 +43,10 @@ La caché SQLite utiliza el hash del párrafo, idioma, reglas, endpoint y espaci
 
 `scripts/build_revision_evidence_handoff.py` extrae localmente comentarios anclados y pares antes/después del control de cambios. El corpus conserva ubicación OOXML, hash documental, categoría sugerida y verificación de elementos protegidos, pero omite los nombres de los revisores. Los cambios no se consideran correctos automáticamente: el paquete humano solicita confirmar utilidad, categoría, interpretación, mejora y cualquier cambio de cifras, fechas, folios, siglas o nombres. La selección se separa por documento para reducir dependencia entre casos y se utiliza como evidencia de evaluación, no como entrenamiento automático.
 
+`scripts/import_revision_validation.py` incorpora el Excel contestado al corpus local. Verifica las cinco decisiones obligatorias, reconstruye la muestra desde el corpus, omite el nombre del revisor y registra cualquier edición en las nueve columnas de evidencia sin sustituir la versión canónica. El JSON resultante contiene texto institucional y debe permanecer dentro de `results/`.
+
+La validación recibida el 9 de octubre de 2026 contiene 40 casos completos: 31 sirven como referencia, 7 no sirven y 2 quedaron indeterminados. Los mismos 31 casos cumplen conjuntamente utilidad, interpretación, mejora y protección para formar el conjunto de evaluación local. La categoría sugerida por la heurística coincidió exactamente con la categoría humana en 8 de 40 casos (20 %); por ello esa categoría sólo se usa para diversificar muestras y no para clasificar o corregir automáticamente.
+
 ## Presentación e interoperabilidad
 
 El HTML ordena la revisión por utilidad: tablas y cifras; concordancia, claridad y ortografía; y finalmente formato agrupado en un bloque plegable. JSON conserva cada hallazgo individual y añade conteos `substantive_findings`, `format_occurrences`, `by_focus` y `groups_by_focus`.
