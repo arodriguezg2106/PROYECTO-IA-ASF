@@ -8,6 +8,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().casefold() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True)
 class WebConfig:
     """Parámetros de configuración del servicio web."""
@@ -43,6 +50,11 @@ class WebConfig:
             if host.strip()
         )
     )
+
+    # Exclusivo para demostración presencial en la misma computadora. La
+    # aplicación rechaza este modo si el host configurado no es loopback.
+    demo_mode: bool = _env_bool("REVISOR_WEB_DEMO_MODE")
+    demo_identity: str = os.getenv("REVISOR_WEB_DEMO_IDENTITY", "demo.local")
 
     # Directorio de almacenamiento temporal de trabajos
     # Por defecto se utiliza un directorio seguro y excluido por .gitignore

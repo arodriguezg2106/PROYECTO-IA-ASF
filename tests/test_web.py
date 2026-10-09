@@ -435,6 +435,27 @@ def test_authentication_is_required_except_health(tmp_path: Path):
     assert unauthorized.headers["www-authenticate"] == "Negotiate"
 
 
+def test_local_demo_needs_no_proxy_but_cannot_bind_to_network(tmp_path: Path):
+    """La presentación local es cómoda sin debilitar la configuración institucional."""
+    cfg = WebConfig(
+        jobs_dir=tmp_path / "demo-jobs",
+        host="127.0.0.1",
+        demo_mode=True,
+        demo_identity="demo.local",
+    )
+    client = TestClient(create_app(cfg), client=("127.0.0.1", 50000))
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "Demostración local" in response.text
+    assert response.headers["x-revisor-demo"] == "local-only"
+
+    external_client = TestClient(create_app(cfg), client=("192.0.2.10", 50000))
+    assert external_client.get("/").status_code == 403
+
+    with pytest.raises(ValueError, match="loopback"):
+        create_app(WebConfig(jobs_dir=tmp_path / "bad", host="0.0.0.0", demo_mode=True))
+
+
 def test_forwarded_identity_is_rejected_from_untrusted_peer(tmp_path: Path):
     """Una cabecera inventada por un cliente no sustituye a IIS/WIA."""
     cfg = WebConfig(jobs_dir=tmp_path / "jobs", trusted_proxy_hosts=("127.0.0.1",))

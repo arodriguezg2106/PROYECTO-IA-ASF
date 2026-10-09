@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import logging
 import re
@@ -67,9 +68,21 @@ def _validated_identity(raw_identity: str | None) -> str | None:
     return identity.casefold()
 
 
+def _is_loopback_host(host: str) -> bool:
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return host.casefold() == "localhost"
+
+
 def create_app(cfg: WebConfig | None = None) -> FastAPI:
     """Fábrica de la aplicación web interna."""
     app_config = cfg or default_config
+    if app_config.demo_mode and not _is_loopback_host(app_config.host):
+        raise ValueError("El modo demo sólo puede configurarse en un host loopback.")
+    demo_identity = _validated_identity(app_config.demo_identity)
+    if app_config.demo_mode and demo_identity is None:
+        raise ValueError("La identidad del modo demo no es válida.")
     storage = JobStorage(app_config.jobs_dir)
     telemetry = PilotTelemetry()
     service = ReviewService(app_config, storage, telemetry)
@@ -138,7 +151,20 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
     @app.middleware("http")
     async def authentication_and_security_headers(request: Request, call_next):
         """Confia en WIA solo cuando la conexion procede del proxy configurado."""
-        if request.url.path != "/api/health":
+        if request.url.path != "/api/health" and app_config.demo_mode:
+            # El modo demo sólo puede crearse con host loopback y no confía en
+            # ninguna identidad proporcionada por el navegador.
+            peer = request.client.host if request.client else ""
+            if not _is_loopback_host(peer):
+                response = JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"detail": "La demostración sólo admite conexiones locales."},
+                )
+            else:
+                request.state.identity = demo_identity
+                response = await call_next(request)
+                response.headers["X-Revisor-Demo"] = "local-only"
+        elif request.url.path != "/api/health":
             peer = request.client.host if request.client else ""
             raw_identity = request.headers.get(app_config.identity_header)
             if peer not in app_config.trusted_proxy_hosts:
@@ -184,7 +210,16 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
         """Página principal de la interfaz accesible."""
         if not index_html_path.exists():
             raise HTTPException(status_code=500, detail="Plantilla no encontrada.")
-        return HTMLResponse(content=index_html_path.read_text(encoding="utf-8"))
+        content = index_html_path.read_text(encoding="utf-8")
+        banner = ""
+        if app_config.demo_mode:
+            banner = (
+                '<div class="alert alert-warning" role="status">'
+                '<strong>Demostración local:</strong> acceso limitado a esta computadora; '
+                'sin SQL Server, Ollama ni servicios externos.'
+                '</div>'
+            )
+        return HTMLResponse(content=content.replace("<!-- DEMO_BANNER -->", banner))
 
     @app.get("/api/health")
     async def health_check():

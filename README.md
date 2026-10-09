@@ -77,6 +77,21 @@ En una instalación sin internet, añada la wheel de `openpyxl` (y `et-xmlfile`)
 
 La revisión semántica con **Ollama** y la revisión editorial con **LanguageTool** u Ollama están desactivadas por defecto, son experimentales, requieren software externo local y no son necesarias para el flujo descrito abajo. Ningún comando de las secciones principales las necesita.
 
+## Demostración web local
+
+Para presentar el flujo desde una sola computadora, instale también
+`requirements-web.txt` y ejecute:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-web.txt
+.\scripts\start_local_demo.ps1
+```
+
+El modo demo sólo acepta conexiones de loopback, crea un DOCX completamente
+sintético con una discrepancia visible y no utiliza SQL Server, IIS, Ollama ni
+servicios externos. La guía de presentación está en
+[`docs/demostracion_local.md`](docs/demostracion_local.md).
+
 ## Generar y leer el ejemplo sintético (comprobación de la instalación)
 
 ```powershell

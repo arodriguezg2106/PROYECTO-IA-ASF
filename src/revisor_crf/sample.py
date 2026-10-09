@@ -7,7 +7,7 @@ from docx import Document
 from docx.enum.section import WD_SECTION_START
 
 
-def create_sample(path):
+def create_sample(path, *, with_discrepancy=False):
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     document = Document()
@@ -24,6 +24,18 @@ def create_sample(path):
     nested = table.cell(1, 1).add_table(rows=1, cols=1)
     nested.cell(0, 0).text = "Detalle anidado"
     document.add_paragraph("Después de la tabla.")
+    if with_discrepancy:
+        document.add_heading("3. Cuadro demostrativo", level=1)
+        discrepancy = document.add_table(rows=4, cols=2)
+        discrepancy.style = "Table Grid"
+        for row_index, values in enumerate((
+            ("Concepto", "Importe"),
+            ("Rubro A", "100.0"),
+            ("Rubro B", "50.0"),
+            ("Total", "200.0"),
+        )):
+            for column_index, value in enumerate(values):
+                discrepancy.cell(row_index, column_index).text = value
     merged = document.add_table(rows=3, cols=2)
     merged.cell(0, 0).merge(merged.cell(0, 1)).text = "Combinación horizontal"
     merged.cell(1, 0).merge(merged.cell(2, 0)).text = "Combinación vertical"
@@ -37,5 +49,10 @@ def create_sample(path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Genera un DOCX sintético, sin datos reales.")
     parser.add_argument("output", type=Path)
+    parser.add_argument(
+        "--with-discrepancy",
+        action="store_true",
+        help="Añade 100 + 50 frente a un total declarado de 200 para la demostración.",
+    )
     args = parser.parse_args()
-    create_sample(args.output)
+    create_sample(args.output, with_discrepancy=args.with_discrepancy)
