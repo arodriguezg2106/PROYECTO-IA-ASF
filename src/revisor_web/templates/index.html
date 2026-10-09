@@ -370,6 +370,10 @@
               <div class="metric-label">Alertas detectadas</div>
             </div>
             <div class="metric-card">
+              <div id="metric-limitations" class="metric-value">0</div>
+              <div class="metric-label">Operaciones no evaluadas</div>
+            </div>
+            <div class="metric-card">
               <div id="metric-evaluated" class="metric-value">0</div>
               <div class="metric-label">Cálculos evaluados</div>
             </div>
@@ -623,6 +627,7 @@
     function showResults(job) {
       const summary = job.summary || {};
       document.getElementById("metric-alerts").textContent = summary.alerts_count ?? 0;
+      document.getElementById("metric-limitations").textContent = summary.limitations_count ?? 0;
       document.getElementById("metric-evaluated").textContent = summary.evaluated ?? 0;
       document.getElementById("metric-excluded").textContent = summary.excluded ?? 0;
       document.getElementById("metric-duration").textContent = (summary.duration_seconds ?? 0) + "s";

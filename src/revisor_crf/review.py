@@ -17,7 +17,7 @@ from .revisions import text_views
 
 ENGINE_VERSION = "0.5.0"
 RULE_VERSIONS = {
-    "NUM-TOTAL-001": "1.1",
+    "NUM-TOTAL-001": "1.2",
     "NUM-CROSS-001": "1.2",
     "NUM-CROSS-ML-001": "1.0",
     "DOC-OBS-001": "1.0",
@@ -205,13 +205,13 @@ def _alert(rule_id: str, category: str, severity: str, message: str, operation: 
         str(operation.get("calculado")),
     ])
     identifier = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:20]
-    return {
-        "id": f"alert-{identifier}",
+    not_evaluable = operation.get("type") == "not_evaluable"
+    item = {
+        "id": f"{'limitation' if not_evaluable else 'alert'}-{identifier}",
+        "item_type": "limitation" if not_evaluable else "alert",
         "rule_id": rule_id,
         "rule_version": RULE_VERSIONS[rule_id],
         "category": category,
-        "severity": severity,
-        "status": "pending",
         "message": message,
         "operation": operation,
         "evidence": evidence,
@@ -221,9 +221,15 @@ def _alert(rule_id: str, category: str, severity: str, message: str, operation: 
         "origin": origin,
         "reading_mode": mode,
         "not_evaluable_reason": reason,
-        "reviewer": {"status": "pending", "comment": ""},
         **({"semantic": semantic} if semantic else {}),
     }
+    if not not_evaluable:
+        item.update(
+            severity=severity,
+            status="pending",
+            reviewer={"status": "pending", "comment": ""},
+        )
+    return item
 
 
 def _unit_signature(number: dict) -> tuple:
@@ -661,7 +667,17 @@ def review_document(path: str | Path, mode: str = "final", catalog_path: str | P
     after_hash = hashlib.sha256(source.read_bytes()).hexdigest()
     if before_hash != after_hash:
         raise RuntimeError("El archivo de entrada cambió durante la revisión.")
+    limitations = [
+        item for item in alerts if item.get("operation", {}).get("type") == "not_evaluable"
+    ]
+    alerts = [
+        item for item in alerts if item.get("operation", {}).get("type") != "not_evaluable"
+    ]
     alerts.sort(key=lambda item: (item["rule_id"], item["id"]))
+    limitations.sort(key=lambda item: (item["rule_id"], item["id"]))
+    for rule_id, rule_coverage in coverage.items():
+        rule_coverage["alerts"] = sum(item["rule_id"] == rule_id for item in alerts)
+        rule_coverage["limitations"] = sum(item["rule_id"] == rule_id for item in limitations)
     warnings = list(document["warnings"])
     if semantic_report and semantic_report.get("status") != "complete":
         warnings.append({
@@ -670,7 +686,7 @@ def review_document(path: str | Path, mode: str = "final", catalog_path: str | P
             "code": semantic_report.get("error_code"),
         })
     return {
-        "schema_version": "review-1.1",
+        "schema_version": "review-1.2",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "engine": {"name": "revisor-crf-hybrid" if semantic else "revisor-crf-deterministic",
                    "version": ENGINE_VERSION,
@@ -679,12 +695,15 @@ def review_document(path: str | Path, mode: str = "final", catalog_path: str | P
         "reading_mode": mode,
         "rules_executed": list(coverage),
         "alerts": alerts,
+        "limitations": limitations,
         "coverage": coverage,
         "summary": {
             "alerts": len(alerts),
             "by_rule": dict(Counter(item["rule_id"] for item in alerts)),
             "by_severity": dict(Counter(item["severity"] for item in alerts)),
             "by_status": dict(Counter(item["status"] for item in alerts)),
+            "limitations": len(limitations),
+            "limitations_by_rule": dict(Counter(item["rule_id"] for item in limitations)),
             "evaluated": sum(item["evaluated"] for item in coverage.values()),
             "excluded": sum(item["excluded"] for item in coverage.values()),
         },

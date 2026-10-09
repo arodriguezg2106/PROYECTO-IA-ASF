@@ -130,7 +130,7 @@ CREATE TABLE crf.app_version (
     engine_name         VARCHAR(50)         NOT NULL, -- 'revisor-crf-deterministic'
     engine_version      VARCHAR(20)         NOT NULL, -- '0.5.0'
     catalog_version     VARCHAR(50)         NOT NULL, -- '2IN2RE01-02-2025-partial-1'
-    rules_schema        VARCHAR(20)         NOT NULL, -- 'review-1.1'
+    rules_schema        VARCHAR(20)         NOT NULL, -- 'review-1.2'
     decisions_schema    VARCHAR(20)         NOT NULL, -- 'review-decisions-1.2'
     is_active           BIT                 NOT NULL DEFAULT 1,
     registered_at       DATETIME2(3)        NOT NULL DEFAULT SYSUTCDATETIME(),

@@ -125,6 +125,8 @@ def _target_groups(report: dict) -> tuple[dict[str, list[dict]], list[str]]:
     groups = defaultdict(list)
     skipped = []
     for alert in report.get("alerts", []):
+        if alert.get("operation", {}).get("type") == "not_evaluable":
+            continue
         origin = (alert.get("evidence") or [{}])[0].get("ubicacion", {}).get("origen") or {}
         if origin.get("part") != "/word/document.xml" or not origin.get("xml_path"):
             skipped.append(alert["id"])

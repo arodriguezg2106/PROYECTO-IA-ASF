@@ -97,10 +97,12 @@ class ReviewService:
             summary = {
                 "schema_version": result.get("schema_version"),
                 "alerts_count": len(result.get("alerts", [])),
+                "limitations_count": len(result.get("limitations", [])),
                 "warnings_count": len(result.get("warnings", [])),
                 "rules_executed": result.get("rules_executed", []),
                 "by_rule": result.get("summary", {}).get("by_rule", {}),
                 "by_severity": result.get("summary", {}).get("by_severity", {}),
+                "limitations_by_rule": result.get("summary", {}).get("limitations_by_rule", {}),
                 "evaluated": result.get("summary", {}).get("evaluated", 0),
                 "excluded": result.get("summary", {}).get("excluded", 0),
                 "sha256": result.get("source", {}).get("sha256", ""),

@@ -83,6 +83,7 @@ def test_index_page(test_app_and_client):
     html = response.text
     assert "Revisor de CRF · Servidor Interno" in html
     assert "Arrastre su archivo DOCX aquí" in html
+    assert "metric-limitations" in html
     # Sin dependencias externas de CDNs
     assert "cdn.jsdelivr.net" not in html
     assert "cdnjs.cloudflare.com" not in html
@@ -209,7 +210,8 @@ def test_full_job_lifecycle(test_app_and_client, synthetic_valid_docx: Path):
     # 3. Comprobar métricas del resumen
     summary = job_data["summary"]
     assert summary["alerts_count"] >= 1, "Debe detectar la discrepancia sintética (100+50!=200)"
-    assert summary["schema_version"] == "review-1.1"
+    assert summary["schema_version"] == "review-1.2"
+    assert summary["limitations_count"] == 0
     assert summary["duration_seconds"] > 0
     assert "NUM-TOTAL-001" in summary["by_rule"] or "NUM-CROSS-001" in summary["by_rule"]
 
@@ -219,7 +221,8 @@ def test_full_job_lifecycle(test_app_and_client, synthetic_valid_docx: Path):
     assert "application/json" in json_resp.headers["content-type"]
     assert f"revision_{job_id[:8]}.json" in json_resp.headers["content-disposition"]
     json_content = json_resp.json()
-    assert json_content["schema_version"] == "review-1.1"
+    assert json_content["schema_version"] == "review-1.2"
+    assert json_content["limitations"] == []
     assert len(json_content["alerts"]) >= 1
     # Comprobar que el JSON contiene commented_copy igual que la CLI
     assert "commented_copy" in json_content

@@ -95,7 +95,7 @@ def test_hybrid_review_requires_two_matching_passes_and_is_cached(tmp_path):
     assert alert["origin"] == "hybrid"
     assert alert["operation"]["declarado"] == Decimal("100")
     assert alert["operation"]["calculado"] == Decimal("120")
-    assert first["schema_version"] == "review-1.1"
+    assert first["schema_version"] == "review-1.2"
     assert first["semantic_review"]["status"] == "complete"
     assert [call[0] for call in provider.calls] == ["associate", "verify"]
     commented = tmp_path / "hybrid-commented.docx"

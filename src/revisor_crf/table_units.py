@@ -41,10 +41,18 @@ def layout(table, view):
     for row in rows:
         cells = row["cells"]
         texts = [plain(c, view) for c in cells]
+        nonempty = [(cell, text) for cell, text in zip(cells, texts) if text.strip()]
         merged = len(cells) == 1 and width > 1 and cells[0]["column_span"] >= width
-        if in_band and merged:
+        dominant_merged_title = (
+            len(nonempty) == 1
+            and width > 2
+            and nonempty[0][0]["column_span"] >= width - 1
+            and bool(re.search(r"[A-Za-zÁÉÍÓÚáéíóúñÑ]", nonempty[0][1]))
+        )
+        if in_band and (merged or dominant_merged_title):
             title_rows.add(row["index"])
-            for p in cells[0]["blocks"]:
+            title_cell = nonempty[0][0] if nonempty else cells[0]
+            for p in title_cell["blocks"]:
                 if p["type"] == "paragraph":
                     text = text_views(p, view)[0][0]
                     for line in text.splitlines():

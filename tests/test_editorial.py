@@ -73,7 +73,7 @@ def test_inherited_word_style_and_reports(tmp_path):
 
 def test_previous_review_contract_remains_when_editorial_disabled(tmp_path):
     report=review_document(make_doc(tmp_path,"Texto."))
-    assert report["schema_version"]=="review-1.1"
+    assert report["schema_version"]=="review-1.2"
     assert "editorial_review" not in report
 
 def test_effective_format_precedence_page_margins_and_evidence(tmp_path):

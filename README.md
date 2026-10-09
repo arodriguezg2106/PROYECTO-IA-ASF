@@ -109,7 +109,7 @@ Los ejemplos usan `.\data\sintetico.docx` (generado en la sección anterior). Pa
 .\.venv\Scripts\python.exe -m revisor_crf .\data\sintetico.docx --mode final --review -o .\results\revision.json --html .\results\revision.html --commented-docx .\results\crf_REVISION_IA.docx
 ```
 
-`--review` comprueba subtotales y totales, relaciones de importes entre tabla y narrativa, y congruencia explícita entre observación y conclusión. El JSON `review-1.1` conserva operación, valores, diferencia, unidad, evidencia, origen determinístico o híbrido y una ruta humana con resultado, tabla, fila, columna y texto de búsqueda. El HTML funciona sin servidor ni recursos externos: muestra el bloque “Dónde revisar”, permite copiar la ubicación o el texto para buscar en Word, desglosa los cálculos por fila y permite filtrar, clasificar, comentar, importar y descargar decisiones humanas. Las decisiones del navegador se vinculan al SHA-256 del DOCX y nunca modifican el original.
+`--review` comprueba subtotales y totales, relaciones de importes entre tabla y narrativa, y congruencia explícita entre observación y conclusión. El JSON `review-1.2` separa las discrepancias accionables de `alerts` y las operaciones que no pudieron evaluarse con seguridad en `limitations`; conserva operación, valores, diferencia, unidad, evidencia, origen determinístico o híbrido y una ruta humana con resultado, tabla, fila, columna y texto de búsqueda. El HTML muestra las limitaciones en una sección neutral, fuera de los filtros y decisiones de alertas. El Word comentado sólo ancla hallazgos accionables. Las decisiones del navegador se vinculan al SHA-256 del DOCX y nunca modifican el original.
 
 ## Revisión semántica local (opcional y experimental)
 

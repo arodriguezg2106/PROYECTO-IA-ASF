@@ -9,6 +9,8 @@ from docx.oxml import OxmlElement
 from revisor_crf.cli import main
 from revisor_crf.commented_docx import export_commented_docx, verify_commented_docx
 from revisor_crf.html_report import render_html
+from revisor_crf.numbers import extract_numbers
+from revisor_crf.reader import read_docx
 from revisor_crf.review import review_document
 
 
@@ -31,8 +33,39 @@ def amount_table(document, rows):
     return table
 
 
+def complex_amount_table(document, *, contracted_total="10,750,713.86"):
+    """Reproduce un título dominante y encabezados en la fila siguiente."""
+    table = document.add_table(rows=2, cols=7)
+    table.cell(0, 0).text = ""
+    title = table.cell(0, 1).merge(table.cell(0, 6))
+    title.text = (
+        "MUNICIPIO SINTÉTICO · AUDITORÍA INTEGRAL A RECURSOS INVENTADOS "
+        "PARA UNA PRUEBA DE ENCABEZADOS COMBINADOS"
+    )
+    for cell, text in zip(table.rows[1].cells, (
+        "Núm.", "Recurso", "Contrato", "Tipo de adjudicación", "Nombre de la obra",
+        "Monto contratado", "Monto ejercido",
+    )):
+        cell.text = text
+    rows = (
+        ("1", "Fondo A", "C-1", "Invitación", "Obra A", "5,849,803.70", "5,772,399.59"),
+        ("2", "Fondo A", "C-2", "Invitación", "Obra B", "2,862,601.63", "2,824,945.85"),
+        ("3", "Fondo B", "C-3", "Invitación", "Obra C", "2,038,308.53", "2,038,308.53"),
+        ("", "", "Total", "", "", contracted_total, "10,635,653.97"),
+    )
+    for values in rows:
+        cells = table.add_row().cells
+        for cell, value in zip(cells, values):
+            cell.text = value
+    return table
+
+
 def alerts(report, rule_id):
     return [alert for alert in report["alerts"] if alert["rule_id"] == rule_id]
+
+
+def limitations(report, rule_id):
+    return [item for item in report["limitations"] if item["rule_id"] == rule_id]
 
 
 def test_incorrect_total_has_exact_operation_and_evidence(tmp_path):
@@ -65,6 +98,37 @@ def test_correct_total_and_multiple_subtotal_blocks(tmp_path):
     assert report["coverage"]["NUM-TOTAL-001"]["evaluated"] == 2
 
 
+def test_dominant_merged_title_keeps_following_column_headers(tmp_path):
+    path = save_document(tmp_path, complex_amount_table)
+    inventory = extract_numbers(read_docx(path))["cifras"]
+    amounts = [
+        item for item in inventory
+        if item.get("columna") in {6, 7} and item.get("fila") in {3, 4, 5, 6}
+    ]
+    assert {item["encabezado_columna"] for item in amounts} == {
+        "Monto contratado", "Monto ejercido",
+    }
+    assert all(item["usable_for_arithmetic"] for item in amounts)
+
+    report = review_document(path)
+    assert alerts(report, "NUM-TOTAL-001") == []
+    assert limitations(report, "NUM-TOTAL-001") == []
+    assert report["coverage"]["NUM-TOTAL-001"]["evaluated"] == 2
+
+
+def test_dominant_merged_title_still_reports_an_actual_difference(tmp_path):
+    path = save_document(
+        tmp_path,
+        lambda document: complex_amount_table(document, contracted_total="10,750,000.00"),
+    )
+    report = review_document(path)
+    alert, = alerts(report, "NUM-TOTAL-001")
+    assert alert["severity"] == "high"
+    assert alert["operation"]["calculado"] == Decimal("10750713.86")
+    assert alert["operation"]["declarado"] == Decimal("10750000.00")
+    assert limitations(report, "NUM-TOTAL-001") == []
+
+
 def test_named_subtotals_feed_grand_total_without_explicit_unit(tmp_path):
     path = save_document(tmp_path, lambda d: amount_table(d, [
         ("FORTAMUN", ""),
@@ -83,7 +147,7 @@ def test_named_subtotals_feed_grand_total_without_explicit_unit(tmp_path):
     report = review_document(path)
     assert alerts(report, "NUM-TOTAL-001") == []
     assert report["coverage"]["NUM-TOTAL-001"] == {
-        "evaluated": 4, "excluded": 0, "alerts": 0,
+        "evaluated": 4, "excluded": 0, "alerts": 0, "limitations": 0,
     }
 
 
@@ -118,7 +182,7 @@ def test_monetary_table_title_wins_over_units_word_in_row_description(tmp_path):
     report = review_document(save_document(tmp_path, build))
     assert alerts(report, "NUM-TOTAL-001") == []
     assert report["coverage"]["NUM-TOTAL-001"] == {
-        "evaluated": 1, "excluded": 0, "alerts": 0,
+        "evaluated": 1, "excluded": 0, "alerts": 0, "limitations": 0,
     }
 
 
@@ -126,10 +190,45 @@ def test_incompatible_units_make_total_not_evaluable(tmp_path):
     path = save_document(tmp_path, lambda d: amount_table(d, [
         ("Obra norte", "100 pesos"), ("Contratos", "2 obras"), ("Total", "100 pesos")]))
     report = review_document(path)
-    alert, = alerts(report, "NUM-TOTAL-001")
-    assert alert["severity"] == "medium"
-    assert alert["operation"]["type"] == "not_evaluable"
-    assert alert["not_evaluable_reason"]
+    limitation, = limitations(report, "NUM-TOTAL-001")
+    assert alerts(report, "NUM-TOTAL-001") == []
+    assert limitation["id"].startswith("limitation-")
+    assert limitation["item_type"] == "limitation"
+    assert limitation["operation"]["type"] == "not_evaluable"
+    assert limitation["not_evaluable_reason"]
+    assert "severity" not in limitation and "status" not in limitation
+    assert "reviewer" not in limitation
+    assert report["summary"]["alerts"] == 0
+    assert report["summary"]["limitations"] == 1
+    assert report["summary"]["limitations_by_rule"] == {"NUM-TOTAL-001": 1}
+
+
+def test_limitation_is_neutral_in_html_and_creates_no_word_comment(tmp_path):
+    path = save_document(tmp_path, lambda d: amount_table(d, [
+        ("Obra norte", "100 pesos"), ("Contratos", "2 obras"), ("Total", "100 pesos")]))
+    report = review_document(path)
+    limitation, = report["limitations"]
+    html = render_html(report)
+    assert "Operaciones no evaluadas" in html
+    assert "no son errores del documento" in html
+    assert limitation["id"] in html
+    limitation_renderer = html.split("function limitationHtml", 1)[1].split(
+        "function suggestionHtml", 1
+    )[0]
+    assert "decisionHtml" not in limitation_renderer
+
+    target = tmp_path / "without_limitation_comments.docx"
+    metadata = export_commented_docx(path, report, target)
+    assert metadata["comments_added"] == 0
+    assert metadata["alerts_anchored"] == 0
+    with ZipFile(target) as archive:
+        assert "word/comments.xml" not in archive.namelist()
+
+    legacy_report = dict(report)
+    legacy_report["alerts"] = [limitation]
+    legacy_target = tmp_path / "legacy_without_limitation_comments.docx"
+    legacy_metadata = export_commented_docx(path, legacy_report, legacy_target)
+    assert legacy_metadata["comments_added"] == 0
 
 
 def test_total_label_accepts_trailing_punctuation(tmp_path):
@@ -145,7 +244,7 @@ def test_negative_value_is_flagged_and_not_silently_summed(tmp_path):
     report = review_document(path)
     negative, = alerts(report, "DATA-NEG-001")
     assert negative["severity"] == "medium"
-    total, = alerts(report, "NUM-TOTAL-001")
+    total, = limitations(report, "NUM-TOTAL-001")
     assert total["operation"]["type"] == "not_evaluable"
 
 
@@ -225,16 +324,15 @@ def test_table_narrative_does_not_cross_explicit_result_numbers(tmp_path):
     assert report["coverage"]["NUM-CROSS-001"]["evaluated"] == 0
 
 
-def test_ambiguous_narrative_relationship_is_medium_alert(tmp_path):
+def test_ambiguous_narrative_relationship_is_limitation(tmp_path):
     def build(document):
         document.add_heading("Resultado 1", level=1)
         amount_table(document, [("Obra Alfa", "100 pesos")])
         document.add_paragraph("La Obra Alfa reportó 100 pesos.")
         document.add_paragraph("Después, la Obra Alfa registró 110 pesos.")
     report = review_document(save_document(tmp_path, build))
-    alert, = alerts(report, "NUM-CROSS-001")
-    assert alert["severity"] == "medium"
-    assert alert["operation"]["type"] == "not_evaluable"
+    limitation, = limitations(report, "NUM-CROSS-001")
+    assert limitation["operation"]["type"] == "not_evaluable"
 
 
 def test_concept_match_with_incompatible_unit_is_not_evaluable(tmp_path):
@@ -242,9 +340,10 @@ def test_concept_match_with_incompatible_unit_is_not_evaluable(tmp_path):
         document.add_heading("Resultado 1", level=1)
         amount_table(document, [("Obra Alfa", "100 pesos")])
         document.add_paragraph("La Obra Alfa reportó 100 obras.")
-    alert, = alerts(review_document(save_document(tmp_path, build)), "NUM-CROSS-001")
-    assert alert["severity"] == "medium"
-    assert alert["operation"]["type"] == "not_evaluable"
+    limitation, = limitations(
+        review_document(save_document(tmp_path, build)), "NUM-CROSS-001"
+    )
+    assert limitation["operation"]["type"] == "not_evaluable"
 
 
 def test_observation_conclusion_conflict_and_consistency(tmp_path):
@@ -386,7 +485,7 @@ def test_cli_review_outputs_serializable_json_and_html(tmp_path):
     assert main([str(path), "--review", "-o", str(output), "--html", str(html),
                  "--commented-docx", str(commented)]) == 0
     payload = json.loads(output.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == "review-1.1"
+    assert payload["schema_version"] == "review-1.2"
     assert payload["source"]["unchanged"] is True
     assert payload["commented_copy"]["comments_added"] == 1
     assert html.read_text(encoding="utf-8").startswith("<!doctype html>")
