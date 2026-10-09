@@ -200,18 +200,14 @@ python scripts/evaluate_editorial.py --regenerate
 
 El comando crea DOCX inventados y exporta `results/editorial_validation/evaluation.json` y `.md`. Devuelve código `0` cuando no hay falsos positivos ni omisiones, `2` cuando las métricas detectan diferencias y `1` ante un error de ejecución. El banco no acepta Ollama para evitar mezclar la calibración determinista con la evaluación contextual.
 
-La evaluación contextual se ejecuta por separado sobre textos completamente sintéticos:
+La evaluación contextual usa una secuencia reproducible y se ejecuta por separado:
 
 ```powershell
 $env:PYTHONPATH = "src;scripts"
-python scripts/evaluate_editorial_context.py --models qwen3.5:4b
+python scripts/evaluate_editorial_context.py --preflight
 ```
 
-El resultado queda en `results/editorial_context/model-evaluation.json`. El banco efectivo contiene 100 casos sintéticos separados en desarrollo, calibración y prueba. Puede usarse `--focused-first` para ejecutar primero diez casos difíciles. Un modelo sólo se aprueba con precisión ≥ 0.90, exhaustividad ≥ 0.85, exactitud ≥ 0.90, acuerdo ≥ 0.95 en tres repeticiones, sin JSON inválido ni alteraciones de elementos protegidos.
-
-Para medir estabilidad, use `--repetitions 3`. Una prueba rápida puede limitarse con `--max-cases 6`; la aprobación completa debe ejecutarse sin ese límite y exige al menos 0.95 de acuerdo entre repeticiones.
-
-La evaluación completa vigente no aprueba `qwen3.5:4b` para uso contextual general. La prueba corta fue perfecta, pero no se sostuvo al ampliar la diversidad: Ollama debe mantenerse desactivado salvo experimentación controlada y revisión humana.
+El preflight no contacta Ollama. La ejecución completa exige, en orden, 2 casos smoke, 10 difíciles, 30 finales y el banco real pareado local, siempre con tres repeticiones. Los candidatos vigentes son `qwen3.5:9b` y `gemma3:12b`; `qwen3.5:27b` exige al menos 24 GB de memoria de acelerador. `qwen3.5:4b` y `qwen3:8b` permanecen rechazados. Los umbrales, el contrato del banco real y los comandos del servidor se documentan en [`docs/evaluacion_modelos_contextuales.md`](docs/evaluacion_modelos_contextuales.md).
 
 ## Ejecutar las pruebas (desarrolladores)
 

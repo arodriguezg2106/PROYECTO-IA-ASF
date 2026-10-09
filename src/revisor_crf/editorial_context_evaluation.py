@@ -17,7 +17,9 @@ def evaluate_context_provider(provider, cases, rule):
             if row.get("suggested_text") and not verify_protected(case["fragment"],row["suggested_text"])["safe"]:unsafe+=1; continue
             valid.append(row)
         predicted=bool(valid); expected=bool(case["expected_finding"])
-        span_ok=not predicted or not expected or any(any(token in row["problem_span"] or row["problem_span"] in token for token in case["acceptable_spans"]) for row in valid)
+        span_ok=(not predicted or not expected or case.get("accept_any_literal_span", False)
+                 or any(any(token in row["problem_span"] or row["problem_span"] in token
+                            for token in case["acceptable_spans"]) for row in valid))
         if predicted and expected and span_ok:tp+=1
         elif predicted and not expected:fp+=1
         elif expected:fn+=1
