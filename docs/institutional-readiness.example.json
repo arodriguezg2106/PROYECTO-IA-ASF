@@ -1,0 +1,35 @@
+{
+  "schema_version": "institutional-readiness-1.0",
+  "reviewed_at": null,
+  "approvals": {
+    "it": false,
+    "cybersecurity": false,
+    "privacy": false,
+    "records_management": false
+  },
+  "sql_server": {
+    "version": "",
+    "database": "BD_AUDITORIA_CRF",
+    "auth_mode": "",
+    "tls_certificate_validated": false,
+    "odbc_driver_18": false
+  },
+  "identity": {
+    "mode": "wia",
+    "required_attributes_confirmed": false,
+    "role_mapping_confirmed": false,
+    "retention_approved": false
+  },
+  "perimeter": {
+    "proxy": "iis",
+    "anti_spoofing_confirmed": false,
+    "https_certificate_assigned": false,
+    "multipart_25mb_allowed": false,
+    "timeout_120s_allowed": false
+  },
+  "storage": {
+    "jobs_path": "D:\\revisor_crf_runtime\\jobs_temp",
+    "free_gb": 0,
+    "antivirus_reviewed": false
+  }
+}
