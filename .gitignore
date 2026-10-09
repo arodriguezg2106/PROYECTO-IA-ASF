@@ -22,6 +22,7 @@ data/
 !tests/data/
 tests/data/*
 !tests/data/numeric_cases.json
+!tests/data/editorial_paired_synthetic.json
 input/
 output/
 outputs/
