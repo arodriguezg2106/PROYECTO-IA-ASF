@@ -1,2 +1,3 @@
 recursive-include src/revisor_web/templates *.html
+recursive-include src/revisor_web/static *.*
 

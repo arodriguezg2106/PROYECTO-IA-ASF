@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from .config import WebConfig, config as default_config
@@ -151,7 +151,8 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
     @app.middleware("http")
     async def authentication_and_security_headers(request: Request, call_next):
         """Confia en WIA solo cuando la conexion procede del proxy configurado."""
-        if request.url.path != "/api/health" and app_config.demo_mode:
+        is_public_asset = request.url.path in ("/api/health", "/favicon.ico") or request.url.path.startswith("/static/")
+        if not is_public_asset and app_config.demo_mode:
             # El modo demo sólo puede crearse con host loopback y no confía en
             # ninguna identidad proporcionada por el navegador.
             peer = request.client.host if request.client else ""
@@ -164,7 +165,7 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
                 request.state.identity = demo_identity
                 response = await call_next(request)
                 response.headers["X-Revisor-Demo"] = "local-only"
-        elif request.url.path != "/api/health":
+        elif not is_public_asset:
             peer = request.client.host if request.client else ""
             raw_identity = request.headers.get(app_config.identity_header)
             if peer not in app_config.trusted_proxy_hosts:
@@ -193,7 +194,7 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
         response.headers.setdefault("Cache-Control", "no-store")
         response.headers.setdefault(
             "Content-Security-Policy",
-            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+            "default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
             "object-src 'none'; base-uri 'none'; frame-ancestors 'self'",
         )
         return response
@@ -220,6 +221,24 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
                 '</div>'
             )
         return HTMLResponse(content=content.replace("<!-- DEMO_BANNER -->", banner))
+
+    static_dir = Path(__file__).parent / "static"
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon():
+        fav_path = static_dir / "favicon.ico"
+        if fav_path.exists():
+            return FileResponse(fav_path, media_type="image/x-icon")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @app.get("/static/logo_asf.png", include_in_schema=False)
+    async def logo_asf():
+        logo_path = static_dir / "logo_asf_128.png"
+        if not logo_path.exists():
+            logo_path = static_dir / "logo_asf.png"
+        if logo_path.exists():
+            return FileResponse(logo_path, media_type="image/png")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     @app.get("/api/health")
     async def health_check():

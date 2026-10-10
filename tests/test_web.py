@@ -101,6 +101,23 @@ def test_health_check(test_app_and_client):
     assert data["max_file_size_mb"] == 2
 
 
+def test_static_assets(test_app_and_client):
+    """Verifica que el logo institucional y favicon se sirvan como assets públicos."""
+    app, _, _ = test_app_and_client
+    # Cliente sin credenciales de proxy para validar acceso público
+    public_client = TestClient(app)
+    res_logo = public_client.get("/static/logo_asf.png")
+    assert res_logo.status_code == 200
+    assert "image/png" in res_logo.headers["content-type"]
+    assert len(res_logo.content) > 1000
+
+    res_fav = public_client.get("/favicon.ico")
+    assert res_fav.status_code == 200
+    assert "image/x-icon" in res_fav.headers["content-type"]
+    assert len(res_fav.content) > 100
+
+
+
 def test_validation_rules():
     """Comprueba las funciones unitarias de validación técnica."""
     # 1. Extensión

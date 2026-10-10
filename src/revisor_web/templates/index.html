@@ -2,26 +2,35 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Revisor de CRF · Interfaz Web Interna</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <title>Revisor de CRF · Centro de Auditoría Inteligente</title>
   <style>
     :root {
-      --bg: #f8fafc;
-      --surface: #ffffff;
-      --text: #0f172a;
-      --text-muted: #475569;
-      --border: #cbd5e1;
+      --bg: #07090e;
+      --bg-gradient: radial-gradient(circle at 50% 0%, #111a2e 0%, #07090e 70%);
+      --surface: rgba(15, 23, 42, 0.75);
+      --surface-card: rgba(17, 24, 39, 0.85);
+      --surface-border: rgba(56, 189, 248, 0.15);
+      --surface-border-hover: rgba(56, 189, 248, 0.4);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-subtle: #64748b;
       --primary: #0284c7;
       --primary-hover: #0369a1;
-      --primary-focus: rgba(2, 132, 199, 0.25);
-      --success: #15803d;
-      --success-bg: #f0fdf4;
-      --warning: #b45309;
-      --warning-bg: #fffbeb;
-      --error: #b91c1c;
-      --error-bg: #fef2f2;
-      --badge-bg: #e2e8f0;
-      --radius: 8px;
+      --primary-focus: rgba(56, 189, 248, 0.35);
+      --cyan-neon: #38bdf8;
+      --cyan-glow: rgba(56, 189, 248, 0.25);
+      --emerald-neon: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.2);
+      --amber-neon: #f59e0b;
+      --amber-glow: rgba(245, 158, 11, 0.2);
+      --rose-neon: #f43f5e;
+      --rose-glow: rgba(244, 63, 94, 0.2);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-pill: 9999px;
+      --transition-fast: 0.15s ease;
+      --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     * {
@@ -31,62 +40,201 @@
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       line-height: 1.5;
       color: var(--text);
-      background-color: var(--bg);
-      padding: 1.5rem 1rem;
+      background: var(--bg);
+      background-image: var(--bg-gradient);
+      background-attachment: fixed;
+      min-height: 100vh;
+      padding: 1.5rem 1rem 3rem;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Patrón de cuadrícula de fondo sutil */
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 36px 36px;
+      pointer-events: none;
+      z-index: 0;
     }
 
     .container {
-      max-width: 900px;
+      max-width: 960px;
       margin: 0 auto;
+      position: relative;
+      z-index: 1;
     }
 
+    /* HEADER */
     header {
       margin-bottom: 2rem;
-      border-bottom: 2px solid var(--border);
-      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--surface-border);
+      padding-bottom: 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .brand-logo-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px var(--cyan-glow);
+      color: #fff;
     }
 
     h1 {
-      font-size: 1.75rem;
-      color: #032b43;
-      margin-bottom: 0.25rem;
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
 
     .subtitle {
       color: var(--text-muted);
-      font-size: 0.95rem;
+      font-size: 0.88rem;
     }
 
+    .header-status-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--surface-border);
+      padding: 0.4rem 0.85rem;
+      border-radius: var(--radius-pill);
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--emerald-neon);
+      box-shadow: 0 0 10px var(--emerald-neon);
+      animation: pulse-glow 2s infinite ease-in-out;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* TARJETAS GLASSMORPHISM */
     .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
+      background: var(--surface-card);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--surface-border);
       border-radius: var(--radius);
-      padding: 1.5rem;
+      padding: 1.75rem;
       margin-bottom: 1.5rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.36);
+      transition: border-color var(--transition-normal);
+      position: relative;
+      overflow: hidden;
     }
 
+    .card:hover {
+      border-color: var(--surface-border-hover);
+    }
+
+    /* DROPZONE MEJORADO CON ESCANEO LÁSER */
     .dropzone {
-      border: 2px dashed var(--border);
+      border: 2px dashed rgba(56, 189, 248, 0.3);
       border-radius: var(--radius);
-      padding: 2.5rem 1.5rem;
+      padding: 3rem 1.5rem;
       text-align: center;
       cursor: pointer;
-      background: #fafafa;
-      transition: border-color 0.15s, background-color 0.15s;
+      background: rgba(11, 19, 38, 0.6);
+      transition: all var(--transition-normal);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--cyan-neon);
+      background: rgba(14, 28, 58, 0.75);
+      box-shadow: 0 0 30px var(--cyan-glow);
     }
 
     .dropzone.dragover {
-      border-color: var(--primary);
-      background: #f0f9ff;
+      transform: scale(1.01);
+    }
+
+    /* Línea de escaneo animada */
+    .dropzone::after {
+      content: "";
+      position: absolute;
+      top: -100%;
+      left: 0;
+      width: 100%;
+      height: 40%;
+      background: linear-gradient(180deg, transparent, rgba(56, 189, 248, 0.15), transparent);
+      opacity: 0;
+      transition: opacity var(--transition-normal);
+      pointer-events: none;
+    }
+
+    .dropzone:hover::after, .dropzone.dragover::after {
+      opacity: 1;
+      animation: scan-move 3s ease-in-out infinite;
+    }
+
+    @keyframes scan-move {
+      0% { top: -40%; }
+      100% { top: 120%; }
+    }
+
+    .dropzone-icon-box {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 1rem;
+      border-radius: 14px;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--cyan-neon);
+      transition: transform var(--transition-normal);
+    }
+
+    .dropzone:hover .dropzone-icon-box {
+      transform: translateY(-4px) scale(1.05);
+      box-shadow: 0 0 15px var(--cyan-glow);
     }
 
     .dropzone:focus-within {
-      outline: 2px solid var(--primary);
-      outline-offset: 2px;
+      outline: 2px solid var(--cyan-neon);
+      outline-offset: 3px;
     }
 
     .file-input {
@@ -100,17 +248,22 @@
       border: 0;
     }
 
+    /* BOTONES MODERNOS */
     .btn {
-      display: inline-block;
-      font-size: 0.95rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      font-size: 0.92rem;
       font-weight: 600;
-      padding: 0.65rem 1.25rem;
-      border-radius: var(--radius);
+      padding: 0.7rem 1.35rem;
+      border-radius: var(--radius-sm);
       border: none;
       cursor: pointer;
       text-decoration: none;
       text-align: center;
-      transition: background-color 0.15s, transform 0.05s;
+      transition: all var(--transition-normal);
+      position: relative;
     }
 
     .btn:focus-visible {
@@ -119,36 +272,46 @@
     }
 
     .btn-primary {
-      background: var(--primary);
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
       color: #ffffff;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
     }
 
     .btn-primary:hover:not(:disabled) {
-      background: var(--primary-hover);
+      background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+      box-shadow: 0 6px 20px rgba(2, 132, 199, 0.5);
+      transform: translateY(-1px);
     }
 
     .btn-primary:disabled {
-      background: #94a3b8;
+      background: #334155;
+      color: #94a3b8;
+      box-shadow: none;
       cursor: not-allowed;
     }
 
     .btn-secondary {
-      background: #e2e8f0;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.2);
       color: var(--text);
     }
 
     .btn-secondary:hover {
-      background: #cbd5e1;
+      background: rgba(51, 65, 85, 0.9);
+      border-color: var(--cyan-neon);
+      color: #ffffff;
     }
 
     .btn-outline {
       background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text);
+      border: 1px solid var(--surface-border);
+      color: var(--text-muted);
     }
 
     .btn-outline:hover {
-      background: #f1f5f9;
+      background: rgba(56, 189, 248, 0.08);
+      border-color: var(--cyan-neon);
+      color: #ffffff;
     }
 
     .actions-bar {
@@ -160,188 +323,381 @@
     }
 
     .file-info {
-      font-weight: 500;
-      color: var(--text);
+      font-weight: 600;
+      color: var(--cyan-neon);
       word-break: break-all;
     }
 
+    /* ALERTAS */
     .alert {
-      padding: 1rem;
-      border-radius: var(--radius);
-      margin-bottom: 1rem;
-      font-size: 0.95rem;
+      padding: 1rem 1.2rem;
+      border-radius: var(--radius-sm);
+      margin-bottom: 1.25rem;
+      font-size: 0.92rem;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
     }
 
     .alert-error {
-      background: var(--error-bg);
-      color: var(--error);
-      border: 1px solid #fecaca;
+      background: rgba(244, 63, 94, 0.12);
+      color: #fda4af;
+      border: 1px solid rgba(244, 63, 94, 0.3);
     }
 
     .alert-success {
-      background: var(--success-bg);
-      color: var(--success);
-      border: 1px solid #bbf7d0;
+      background: rgba(16, 185, 129, 0.12);
+      color: #86efac;
+      border: 1px solid rgba(16, 185, 129, 0.3);
     }
 
     .alert-warning {
-      background: var(--warning-bg);
-      color: var(--warning);
-      border: 1px solid #fde68a;
+      background: rgba(245, 158, 11, 0.12);
+      color: #fde68a;
+      border: 1px solid rgba(245, 158, 11, 0.3);
     }
 
-    /* Estados de procesamiento */
+    /* BADGES DE ESTADO CON RESPLANDOR */
     .status-badge {
-      display: inline-block;
-      padding: 0.25rem 0.65rem;
-      border-radius: 9999px;
-      font-size: 0.85rem;
-      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      padding: 0.3rem 0.8rem;
+      border-radius: var(--radius-pill);
+      font-size: 0.78rem;
+      font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.025em;
+      letter-spacing: 0.05em;
     }
 
-    .status-recibido { background: #e0f2fe; color: #0369a1; }
-    .status-procesando { background: #fef3c7; color: #92400e; }
-    .status-terminado { background: #dcfce7; color: #166534; }
-    .status-fallido { background: #fee2e2; color: #991b1b; }
+    .status-recibido {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--cyan-neon);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      box-shadow: 0 0 10px var(--cyan-glow);
+    }
 
+    .status-procesando {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--amber-neon);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      box-shadow: 0 0 10px var(--amber-glow);
+    }
+
+    .status-terminado {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--emerald-neon);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      box-shadow: 0 0 10px var(--emerald-glow);
+    }
+
+    .status-fallido {
+      background: rgba(244, 63, 94, 0.15);
+      color: var(--rose-neon);
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      box-shadow: 0 0 10px var(--rose-glow);
+    }
+
+    /* BARRA DE PROGRESO HOLOGRÁFICA */
     .progress-bar-container {
       width: 100%;
-      height: 8px;
-      background: #e2e8f0;
-      border-radius: 4px;
+      height: 10px;
+      background: rgba(30, 41, 59, 0.6);
+      border-radius: var(--radius-pill);
       overflow: hidden;
-      margin: 1rem 0;
+      margin: 1.25rem 0;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
     }
 
     .progress-bar {
       height: 100%;
-      background: var(--primary);
+      background: linear-gradient(90deg, #0284c7, #38bdf8);
       width: 0%;
-      transition: width 0.3s ease;
+      transition: width var(--transition-normal);
+      border-radius: var(--radius-pill);
     }
 
     .progress-bar.indeterminate {
       width: 100%;
       background: repeating-linear-gradient(
         45deg,
-        var(--primary),
-        var(--primary) 10px,
-        var(--primary-hover) 10px,
-        var(--primary-hover) 20px
+        #0284c7,
+        #0284c7 15px,
+        #38bdf8 15px,
+        #38bdf8 30px
       );
-      animation: progress-move 1.5s linear infinite;
+      background-size: 60px 100%;
+      animation: progress-holo 1.2s linear infinite;
+      box-shadow: 0 0 15px var(--cyan-glow);
     }
 
-    @keyframes progress-move {
+    @keyframes progress-holo {
       0% { background-position: 0 0; }
-      100% { background-position: 40px 0; }
+      100% { background-position: 60px 0; }
     }
 
+    /* MÉTRICAS EN GRID CON ELEVACIÓN */
     .metrics-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 1rem;
-      margin: 1.25rem 0;
+      margin: 1.5rem 0;
     }
 
     .metric-card {
-      background: #f8fafc;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1rem;
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(56, 189, 248, 0.15);
+      border-radius: var(--radius-sm);
+      padding: 1.25rem 1rem;
       text-align: center;
+      transition: all var(--transition-normal);
+      position: relative;
+    }
+
+    .metric-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--cyan-neon);
+      box-shadow: 0 8px 24px -4px var(--cyan-glow);
+      background: rgba(20, 32, 58, 0.8);
     }
 
     .metric-value {
-      font-size: 1.75rem;
-      font-weight: 700;
-      color: #032b43;
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #ffffff;
+      line-height: 1.2;
+      margin-bottom: 0.25rem;
+    }
+
+    .metric-card:nth-child(1) .metric-value {
+      color: var(--rose-neon);
+      text-shadow: 0 0 20px var(--rose-glow);
+    }
+
+    .metric-card:nth-child(3) .metric-value {
+      color: var(--emerald-neon);
+      text-shadow: 0 0 20px var(--emerald-glow);
     }
 
     .metric-label {
-      font-size: 0.8rem;
+      font-size: 0.76rem;
       color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
+      font-weight: 600;
     }
 
+    /* TABLA DE REGLAS MODERNA */
     table {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
       margin: 1rem 0;
       font-size: 0.9rem;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--surface-border);
     }
 
     th, td {
-      border: 1px solid var(--border);
-      padding: 0.6rem 0.75rem;
+      padding: 0.75rem 1rem;
       text-align: left;
     }
 
     th {
-      background: #f1f5f9;
+      background: rgba(30, 41, 59, 0.7);
       font-weight: 600;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--surface-border);
     }
 
+    td {
+      background: rgba(15, 23, 42, 0.5);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: rgba(56, 189, 248, 0.05);
+    }
+
+    /* MUELLE DE DESCARGA */
     .download-group {
       display: flex;
-      gap: 0.75rem;
+      gap: 0.85rem;
       flex-wrap: wrap;
       margin-top: 1.5rem;
+    }
+
+    /* ASISTENTE DE IA EXPANDIBLE (SECCIÓN PREPARADA) */
+    .ai-assistant-dock {
+      margin-top: 2rem;
+      background: linear-gradient(135deg, rgba(17, 24, 39, 0.9) 0%, rgba(10, 16, 32, 0.9) 100%);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      position: relative;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .ai-assistant-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .ai-assistant-title {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .ai-badge {
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      color: #ffffff;
+      padding: 0.2rem 0.55rem;
+      border-radius: var(--radius-pill);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .ai-preview-box {
+      background: rgba(7, 11, 20, 0.7);
+      border: 1px solid rgba(56, 189, 248, 0.15);
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+      margin-top: 0.85rem;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .ai-prompts-chips {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+    }
+
+    .ai-chip {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      color: var(--cyan-neon);
+      padding: 0.35rem 0.75rem;
+      border-radius: var(--radius-pill);
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .ai-chip:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: var(--cyan-neon);
+      transform: translateY(-1px);
     }
 
     .hidden {
       display: none !important;
     }
 
+    /* FOOTER */
     footer {
-      margin-top: 3rem;
-      padding-top: 1rem;
-      border-top: 1px solid var(--border);
+      margin-top: 3.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--surface-border);
       text-align: center;
-      font-size: 0.85rem;
-      color: var(--text-muted);
+      font-size: 0.82rem;
+      color: var(--text-subtle);
+    }
+
+    footer a {
+      color: var(--cyan-neon);
+      text-decoration: none;
+    }
+
+    /* Animaciones de entrada para paneles */
+    .fade-in {
+      animation: fadeInSlide 0.35s ease forwards;
+    }
+
+    @keyframes fadeInSlide {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Revisor de CRF · Servidor Interno</h1>
-      <p class="subtitle">Motor híbrido determinístico local para documentos Word DOCX de auditoría</p>
+      <div class="brand-group">
+        <div class="brand-logo-icon" aria-hidden="true" style="background: transparent; box-shadow: none; width: 48px; height: 48px;">
+          <img src="/static/logo_asf.png" alt="Logo ASF" style="width: 48px; height: 48px; object-fit: contain; filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.45));">
+        </div>
+        <div>
+          <h1>Revisor de CRF · Servidor Interno <span style="font-size: 0.75rem; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); color: var(--cyan-neon); padding: 0.15rem 0.5rem; border-radius: var(--radius-pill); font-weight: 600;">v0.5.0</span></h1>
+          <p class="subtitle">Centro de Control y Auditoría Determinística de Informes DOCX</p>
+        </div>
+      </div>
+      <div class="header-status-pill">
+        <span class="pulse-dot"></span>
+        <span>Motor Local Activo</span>
+      </div>
     </header>
 
     <!-- DEMO_BANNER -->
 
     <main>
       <!-- Panel de carga de documento -->
-      <section id="upload-section" class="card" aria-labelledby="upload-title">
-        <h2 id="upload-title" style="font-size: 1.25rem; margin-bottom: 1rem;">Cargar Documento para Revisión</h2>
+      <section id="upload-section" class="card fade-in" aria-labelledby="upload-title">
+        <h2 id="upload-title" style="font-size: 1.25rem; margin-bottom: 0.35rem; color: #ffffff;">Cargar Documento para Revisión</h2>
+        <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.25rem;">Procesamiento local confidencial con validación de tablas y concordancia aritmética.</p>
 
         <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Seleccionar o arrastrar archivo DOCX">
-          <p style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem;">Arrastre su archivo DOCX aquí</p>
-          <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">o haga clic para seleccionarlo de su equipo</p>
-          <span class="btn btn-secondary">Examinar archivos</span>
+          <div class="dropzone-icon-box">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+          <p style="font-size: 1.15rem; font-weight: 700; color: #ffffff; margin-bottom: 0.35rem;">Arrastre su archivo DOCX aquí</p>
+          <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.25rem;">o haga clic en este recuadro para explorar su equipo</p>
+          <span class="btn btn-secondary">Examinar archivos locales</span>
           <input type="file" id="file-input" class="file-input" accept=".docx" aria-label="Archivo DOCX de entrada">
         </div>
 
-        <div id="selected-file-box" class="hidden" style="margin-top: 1rem;">
-          <p>Archivo seleccionado: <span id="selected-file-name" class="file-info"></span> (<span id="selected-file-size"></span>)</p>
+        <div id="selected-file-box" class="hidden" style="margin-top: 1.25rem; background: rgba(11, 19, 38, 0.8); border: 1px solid var(--surface-border); border-radius: var(--radius-sm); padding: 1.25rem;">
+          <p style="font-size: 0.95rem;">Archivo listo: <span id="selected-file-name" class="file-info"></span> <span style="color: var(--text-subtle);">·</span> <span id="selected-file-size" style="color: var(--text-muted);"></span></p>
           <div class="actions-bar">
-            <button id="btn-upload" class="btn btn-primary">Iniciar Revisión Determinística</button>
+            <button id="btn-upload" class="btn btn-primary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              Iniciar Revisión Determinística
+            </button>
             <button id="btn-cancel-select" class="btn btn-outline">Cambiar archivo</button>
           </div>
         </div>
 
-        <div id="upload-error" class="alert alert-error hidden" role="alert" style="margin-top: 1rem;"></div>
+        <div id="upload-error" class="alert alert-error hidden" role="alert" style="margin-top: 1.25rem;"></div>
       </section>
 
       <!-- Panel de progreso del trabajo -->
-      <section id="status-section" class="card hidden" aria-labelledby="status-title" aria-live="polite">
+      <section id="status-section" class="card hidden fade-in" aria-labelledby="status-title" aria-live="polite">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-          <h2 id="status-title" style="font-size: 1.25rem;">Estado de la Revisión</h2>
+          <h2 id="status-title" style="font-size: 1.25rem; color: #ffffff;">Estado de la Revisión</h2>
           <span id="status-badge" class="status-badge status-recibido">Recibido</span>
         </div>
 
@@ -351,15 +707,18 @@
           <div id="progress-bar" class="progress-bar indeterminate"></div>
         </div>
 
-        <p style="font-size: 0.85rem; color: var(--text-muted);">
-          Identificador del trabajo: <code id="job-id-display"></code>
+        <p style="font-size: 0.82rem; color: var(--text-subtle);">
+          Identificador del trabajo: <code id="job-id-display" style="color: var(--cyan-neon); font-family: monospace;"></code>
         </p>
       </section>
 
       <!-- Panel de resultados -->
-      <section id="results-section" class="card hidden" aria-labelledby="results-title">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-          <h2 id="results-title" style="font-size: 1.35rem; color: #032b43;">Resultados de la Revisión</h2>
+      <section id="results-section" class="card hidden fade-in" aria-labelledby="results-title">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+          <div>
+            <h2 id="results-title" style="font-size: 1.35rem; color: #ffffff;">Resultados de la Revisión</h2>
+            <p style="color: var(--text-muted); font-size: 0.85rem;">Dictamen analítico generado por el motor de reglas review-1.1</p>
+          </div>
           <span class="status-badge status-terminado">Completado</span>
         </div>
 
@@ -371,7 +730,7 @@
             </div>
             <div class="metric-card">
               <div id="metric-limitations" class="metric-value">0</div>
-              <div class="metric-label">Operaciones no evaluadas</div>
+              <div class="metric-label">No evaluadas</div>
             </div>
             <div class="metric-card">
               <div id="metric-evaluated" class="metric-value">0</div>
@@ -387,32 +746,74 @@
             </div>
           </div>
 
-          <div style="margin: 1.5rem 0;">
-            <h3 style="font-size: 1.05rem; margin-bottom: 0.5rem;">Desglose por Regla Determinística</h3>
+          <div style="margin: 1.75rem 0;">
+            <h3 style="font-size: 1.05rem; margin-bottom: 0.65rem; color: #ffffff;">Desglose por Regla Determinística</h3>
             <div id="rules-table-container"></div>
           </div>
 
-          <h3 style="font-size: 1.05rem; margin-top: 1.5rem; margin-bottom: 0.5rem;">Descarga y Consulta de Entregables</h3>
-          <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">
-            Los archivos generados son independientes y el documento original no fue modificado.
+          <h3 style="font-size: 1.05rem; margin-top: 1.75rem; margin-bottom: 0.5rem; color: #ffffff;">Descarga y Consulta de Entregables</h3>
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Los archivos generados son independientes. El documento original no fue modificado.
           </p>
 
           <div class="download-group">
-            <a id="link-view-html" class="btn btn-primary" target="_blank" rel="noopener">Abrir Reporte Interactivo HTML</a>
-            <a id="link-download-docx" class="btn btn-secondary">Descargar DOCX Comentado</a>
-            <a id="link-download-html" class="btn btn-outline">Descargar Reporte HTML</a>
-            <a id="link-download-json" class="btn btn-outline">Descargar JSON</a>
+            <a id="link-view-html" class="btn btn-primary" target="_blank" rel="noopener">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              Abrir Reporte Interactivo HTML
+            </a>
+            <a id="link-download-docx" class="btn btn-secondary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Descargar DOCX Comentado
+            </a>
+            <a id="link-download-html" class="btn btn-outline">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+              Descargar Reporte HTML
+            </a>
+            <a id="link-download-json" class="btn btn-outline">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+              Descargar JSON
+            </a>
           </div>
 
-          <div style="margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1rem;">
-            <button id="btn-restart" class="btn btn-outline">Revisar otro documento</button>
+          <!-- MÓDULO VISUAL PREPARADO PARA ASISTENTE / CHAT IA -->
+          <div class="ai-assistant-dock">
+            <div class="ai-assistant-header">
+              <div class="ai-assistant-title">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2a10 10 0 1 0 10 10H12V2z"></path>
+                  <path d="M12 12L2.1 12.5"></path>
+                  <path d="M12 12l4.5 8.9"></path>
+                  <circle cx="12" cy="12" r="2"></circle>
+                </svg>
+                Asistente Semántico de Auditoría
+                <span class="ai-badge">Próximamente IA</span>
+              </div>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">
+              Capa de análisis textual para verificar coherencia de causas y recomendaciones en observaciones.
+            </p>
+            <div class="ai-preview-box">
+              <p>✦ <em>"¿Deseas que analice la redacción de los párrafos observados o sugiera mejoras de coherencia jurídica?"</em></p>
+              <div class="ai-prompts-chips">
+                <span class="ai-chip" onclick="alert('Módulo de IA en preparación institucional. Estará habilitado con Ollama local.')">✦ Explicar discrepancia de sumas</span>
+                <span class="ai-chip" onclick="alert('Módulo de IA en preparación institucional. Estará habilitado con Ollama local.')">✦ Evaluar coherencia de recomendación</span>
+                <span class="ai-chip" onclick="alert('Módulo de IA en preparación institucional. Estará habilitado con Ollama local.')">✦ Resumir observaciones para informe</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 2rem; border-top: 1px solid var(--surface-border); padding-top: 1.25rem;">
+            <button id="btn-restart" class="btn btn-outline">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+              Revisar otro documento
+            </button>
           </div>
         </div>
       </section>
 
       <!-- Panel de error -->
-      <section id="error-section" class="card hidden" aria-labelledby="error-title">
-        <h2 id="error-title" style="font-size: 1.25rem; color: var(--error); margin-bottom: 0.5rem;">Error en el Procesamiento</h2>
+      <section id="error-section" class="card hidden fade-in" aria-labelledby="error-title">
+        <h2 id="error-title" style="font-size: 1.25rem; color: var(--rose-neon); margin-bottom: 0.5rem;">Error en el Procesamiento</h2>
         <div id="job-error-message" class="alert alert-error"></div>
         <button id="btn-error-retry" class="btn btn-secondary" style="margin-top: 1rem;">Intentar nuevamente</button>
       </section>
@@ -420,7 +821,7 @@
 
     <footer>
       <p>Revisor-CRF · Procesamiento local seguro · Conforme al esquema review-1.1</p>
-      <p style="font-size: 0.75rem; margin-top: 0.25rem;">Los archivos se eliminan automáticamente del servidor según la política de retención configurada.</p>
+      <p style="font-size: 0.78rem; margin-top: 0.35rem; color: var(--text-subtle);">Los archivos temporales se purgan automáticamente del servidor conforme al TTL institucional configurado.</p>
     </footer>
   </div>
 
@@ -642,7 +1043,7 @@
       } else {
         let html = "<table><thead><tr><th>Regla</th><th>Alertas</th></tr></thead><tbody>";
         rules.forEach(rule => {
-          html += `<tr><td><strong>${escapeHtml(rule)}</strong></td><td>${byRule[rule]}</td></tr>`;
+          html += `<tr><td><strong style='color: var(--cyan-neon);'>${escapeHtml(rule)}</strong></td><td><span style='background: rgba(244, 63, 94, 0.15); color: var(--rose-neon); padding: 0.15rem 0.5rem; border-radius: 9999px; font-weight: 700;'>${byRule[rule]}</span></td></tr>`;
         });
         html += "</tbody></table>";
         container.innerHTML = html;
