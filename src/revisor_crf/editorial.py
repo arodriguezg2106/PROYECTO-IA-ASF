@@ -55,6 +55,7 @@ class EditorialConfig:
     language_tool_url: str = "http://127.0.0.1:8081/v2"
     language_tool_language: str = "es"
     language_tool_timeout_seconds: float = 10.0
+    language_tool_profile_path: str | None = None
     language_tool_rule_ids: tuple[str, ...] = ()
     language_tool_categories: tuple[str, ...] = ()
     language_tool_excluded_categories: tuple[str, ...] = ()
@@ -77,6 +78,10 @@ class EditorialConfig:
         if unknown: raise ValueError("Campos editoriales desconocidos: " + ", ".join(sorted(unknown)))
         for key in ("categories", "excluded_style_patterns", "language_tool_rule_ids", "language_tool_categories", "language_tool_excluded_categories", "language_tool_accepted_terms"):
             if isinstance(values.get(key), list): values[key] = tuple(values[key])
+        if path and values.get("language_tool_profile_path"):
+            profile_path = Path(values["language_tool_profile_path"])
+            if not profile_path.is_absolute():
+                values["language_tool_profile_path"] = str((Path(path).parent / profile_path).resolve())
         result = cls(**values)
         if result.autofix: raise ValueError("autofix no está disponible en esta versión.")
         _invalid_config = (
@@ -90,8 +95,6 @@ class EditorialConfig:
         )
         if _invalid_config:
             raise ValueError("Configuración editorial fuera de rango.")
-        if result.language_tool_enabled and not result.language_tool_experimental:
-            raise ValueError("LanguageTool requiere activación experimental explícita.")
         return result
 
 class EditorialProvider(Protocol):
@@ -529,8 +532,14 @@ def _ignore_spelling_match(match, text, accepted_terms=(), known_acronyms=()):
 def review_editorial(path, document, config=None, catalog_path=None, provider=None, inventory=None,
                      visual_verifier=None, language_tool_provider=None):
     started=time.perf_counter(); config=config or EditorialConfig(); catalog=load_editorial_catalog(catalog_path)
+    if config.ollama_enabled and config.language_tool_enabled:
+        raise ValueError("Sólo puede activarse un proveedor lingüístico a la vez.")
+    lt_profile = None
     if config.language_tool_enabled and not config.language_tool_experimental:
-        raise ValueError("LanguageTool requiere activación experimental explícita.")
+        if not config.language_tool_profile_path:
+            raise ValueError("LanguageTool requiere un perfil aprobado.")
+        from .language_tool_profile import load_language_tool_profile
+        lt_profile = load_language_tool_profile(config.language_tool_profile_path)
     rules=[r for r in catalog["rules"] if r["enabled"] and (not config.categories or r["category"] in config.categories)]
     phase_started=time.perf_counter(); findings,_legacy_glossary=_deterministic(document,rules)
     findings+=_safe_context_findings(document,rules)
@@ -586,22 +595,36 @@ def review_editorial(path, document, config=None, catalog_path=None, provider=No
                 from .language_tool import CachedLanguageToolProvider
                 lt_client=CachedLanguageToolProvider(lt_client,config.language_tool_cache_path,
                                                      namespace=config.language_tool_cache_namespace)
+        profile_rules = tuple(lt_profile.approved_rule_ids) if lt_profile else ()
+        if lt_profile and config.language_tool_rule_ids and not set(config.language_tool_rule_ids) <= set(profile_rules):
+            raise ValueError("La configuración solicita reglas fuera del perfil aprobado de LanguageTool.")
+        active_rule_ids = profile_rules or config.language_tool_rule_ids
         allowed_categories = {value.upper() for value in config.language_tool_categories}
         excluded_categories = {value.upper() for value in config.language_tool_excluded_categories}
+        if lt_profile:
+            excluded_categories.update(value.upper() for value in lt_profile.excluded_categories)
+        accepted_terms = tuple(config.language_tool_accepted_terms) + (
+            tuple(lt_profile.accepted_terms) if lt_profile else ()
+        )
         known_acronyms = {item.get("acronym") for item in glossary if item.get("acronym")}
         for p,table,cell in _blocks(document["blocks"]):
             text=p.get("text", "")[:config.max_fragment_chars]
-            if not text.strip(): continue
+            style = str((p.get("style") or {}).get("name") or "").casefold()
+            words = len(re.findall(r"\b\w+\b", text, re.UNICODE))
+            if (not text.strip() or table is not None or p.get("heading_level") is not None
+                    or any(pattern.casefold() in style for pattern in config.excluded_style_patterns)
+                    or words < config.min_paragraph_words or words > config.max_paragraph_words):
+                continue
             try:
                 language_tool_calls += 1
-                matches = lt_client.check(text, rule_ids=config.language_tool_rule_ids)
+                matches = lt_client.check(text, rule_ids=active_rule_ids)
                 for match in matches:
                     category = str(((match.get("rule") or {}).get("category") or {}).get("id") or "").upper()
                     if allowed_categories and category not in allowed_categories:
                         continue
                     if category in excluded_categories:
                         continue
-                    if _ignore_spelling_match(match, text, config.language_tool_accepted_terms, known_acronyms):
+                    if _ignore_spelling_match(match, text, accepted_terms, known_acronyms):
                         continue
                     item = _language_tool_finding(p, match)
                     if table:
@@ -664,6 +687,12 @@ def review_editorial(path, document, config=None, catalog_path=None, provider=No
         ),
         "duration_seconds": method_durations.get("language_tool", 0.0),
         "cache": getattr(lt_client, "stats", {}) if config.language_tool_enabled else {},
+        "profile": None if lt_profile is None else {
+            "profile_version": lt_profile.profile_version,
+            "status": lt_profile.status,
+            "sha256": lt_profile.sha256,
+            "approved_rule_count": len(lt_profile.approved_rule_ids),
+        },
     }
     _summary = {
         "findings": len(findings),

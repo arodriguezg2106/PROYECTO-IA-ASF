@@ -49,8 +49,6 @@ def main(argv=None):
             raise ValueError("--editorial-experimental-model requiere --editorial-ollama.")
         if args.editorial_language_tool and not args.editorial_review:
             raise ValueError("--editorial-language-tool requiere --editorial-review.")
-        if args.editorial_language_tool and not args.editorial_experimental_provider:
-            raise ValueError("--editorial-language-tool requiere --editorial-experimental-provider.")
         if args.editorial_experimental_provider and not args.editorial_language_tool:
             raise ValueError("--editorial-experimental-provider requiere --editorial-language-tool.")
         if args.markdown and not args.review:

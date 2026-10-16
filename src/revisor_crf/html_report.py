@@ -80,6 +80,7 @@ def _editorial_html(report: dict) -> str:
                  item.get("message", ""))].append(item)
     substantive_rows = []
     format_rows = []
+    language_tool_rows = []
     decision_options = "".join(
         f'<option value="{value}">{label}</option>' for value, label in (
             ("pending", "Pendiente"), ("confirmed", "Confirmada"),
@@ -114,9 +115,15 @@ def _editorial_html(report: dict) -> str:
                 escape(str(rule_id)), escape(str(severity)), escape(str(method)),
                 escape(str(message)), len(items), "s" if len(items) != 1 else "",
                 occurrences, escape(foundation)))
-        (format_rows if items[0].get("review_focus") == "format" else substantive_rows).append(row_html)
+        if method == "language_tool":
+            language_tool_rows.append(row_html)
+        elif items[0].get("review_focus") == "format":
+            format_rows.append(row_html)
+        else:
+            substantive_rows.append(row_html)
     substantive_html = "".join(substantive_rows) or '<tr><td colspan="6">Sin observaciones sustantivas adicionales.</td></tr>'
     format_html = "".join(format_rows) or '<tr><td colspan="6">Sin observaciones de formato.</td></tr>'
+    language_tool_html = "".join(language_tool_rows) or '<tr><td colspan="6">Sin sugerencias lingüísticas.</td></tr>'
     def options(values):
         return "".join(f'<option value="{escape(str(value), quote=True)}">{escape(str(value))}</option>'
                        for value in sorted(values))
@@ -133,7 +140,16 @@ def _editorial_html(report: dict) -> str:
     model=ed.get("ollama",{}).get("model") or {}
     model_text=f'{model.get("model_id")} ({model.get("status")})' if model else "desactivado"
     lt=ed.get("language_tool",{})
-    lt_text=lt.get("status", "desactivado") if lt.get("enabled") else "desactivado"
+    if lt.get("enabled"):
+        lt_profile = lt.get("profile") or {}
+        lt_text = (
+            f'{lt.get("status", "desconocido")} · LanguageTool 6.6 · '
+            f'perfil {lt_profile.get("profile_version") or "—"} · '
+            f'{float(lt.get("duration_seconds") or 0):.3f} s · '
+            f'{len(lt.get("errors") or [])} errores técnicos'
+        )
+    else:
+        lt_text = "desactivado"
     return (f'<section id="editorial-review" class="card"><h2>Revisión editorial ASF</h2>'
             f'<p>Catálogo {escape(str(ed.get("catalog_version")))} · '
             f'<strong>{summary.get("substantive_findings", summary.get("findings", 0))} observaciones sustantivas</strong> · '
@@ -152,6 +168,11 @@ def _editorial_html(report: dict) -> str:
             '<p id="editorial-filter-summary" class="meta"></p>'
             '<h3>Concordancia, claridad, ortografía y consistencia editorial</h3><table class="calc-table"><thead><tr><th>Regla</th><th>Severidad</th><th>Método</th><th>Hallazgo</th><th>Ubicaciones</th><th>Fundamento</th></tr></thead>'
             f'<tbody>{substantive_html}</tbody></table>'
+            '<details class="card"><summary><strong>Sugerencias lingüísticas de LanguageTool</strong> — '
+            f'{len(language_tool_rows)} grupos posibles; siempre requieren decisión humana</summary>'
+            '<p class="meta">Estas sugerencias provienen exclusivamente de reglas incluidas en el perfil aprobado. No son errores confirmados y no generan comentarios de Word.</p>'
+            '<table class="calc-table"><thead><tr><th>Regla</th><th>Severidad</th><th>Método</th><th>Sugerencia</th><th>Ubicaciones</th><th>Fundamento</th></tr></thead>'
+            f'<tbody>{language_tool_html}</tbody></table></details>'
             f'<details class="card"><summary><strong>Observaciones de formato agrupadas</strong> — {summary.get("format_occurrences", 0)} ocurrencias en {summary.get("groups_by_focus", {}).get("format", 0)} tipos</summary><table class="calc-table"><thead><tr><th>Regla</th><th>Severidad</th><th>Método</th><th>Hallazgo</th><th>Ubicaciones</th><th>Fundamento</th></tr></thead><tbody>{format_html}</tbody></table></details>'
             f'<h3>Cobertura por regla</h3><table class="calc-table"><thead><tr><th>Regla</th><th>Estado</th><th>Hallazgos</th><th>Fundamento</th></tr></thead><tbody>{coverage_rows}</tbody></table>'
             f'<h3>Glosario de siglas</h3><table class="calc-table"><thead><tr><th>Sigla</th><th>Denominación</th><th>Primera ubicación</th><th>Estado</th></tr></thead><tbody>{glossary_rows}</tbody></table>'

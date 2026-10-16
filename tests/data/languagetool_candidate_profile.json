@@ -1,0 +1,59 @@
+{
+  "schema_version": "languagetool-profile-1.0",
+  "profile_version": "lt-es-6.6-0fe4296d9889",
+  "status": "candidate",
+  "provider": {
+    "name": "LanguageTool",
+    "version": "6.6",
+    "language": "es"
+  },
+  "approved_rule_ids": [
+    "COMMA_PARENTHESIS_WHITESPACE",
+    "MORFOLOGIK_RULE_ES"
+  ],
+  "accepted_terms": [
+    "ASF",
+    "CRF",
+    "UAA",
+    "SHCP"
+  ],
+  "excluded_categories": [
+    "CASING"
+  ],
+  "source": {
+    "banks": [
+      {
+        "path": "tests\\data\\languagetool_synthetic.json",
+        "sha256": "09338bc8318fb79f8aafe58647856e23c88e44bf7ef783b6d038298d2f50aec9",
+        "schema_version": "languagetool-evaluation-bank-1.0",
+        "cases": 60,
+        "synthetic": true
+      },
+      {
+        "path": "results\\editorial_validation\\bank\\manifest.json",
+        "sha256": "dc97952ed19f01b20353abff5921b3c4d6943306821ef1e8065a9d8a18cf534d",
+        "schema_version": "editorial-validation-bank-1.0",
+        "cases": 20,
+        "synthetic": true
+      }
+    ]
+  },
+  "metrics": {
+    "cases": 80,
+    "true_positives": 23,
+    "false_positives": 0,
+    "false_negatives": 15,
+    "true_negatives": 42,
+    "precision": 1.0,
+    "recall": 0.6053,
+    "false_positive_rate": 0.0,
+    "agreement": 1.0,
+    "invalid_responses": 0,
+    "unsafe_suggestions": 0,
+    "repetitions": 2
+  },
+  "privacy": {
+    "contains_raw_text": false,
+    "safe_for_version_control": true
+  }
+}

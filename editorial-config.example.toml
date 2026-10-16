@@ -18,6 +18,8 @@ language_tool_experimental = false
 language_tool_url = "http://127.0.0.1:8081/v2"
 language_tool_language = "es"
 language_tool_timeout_seconds = 10
+# Obligatorio fuera del modo experimental; la ruta relativa se resuelve desde este archivo.
+# language_tool_profile_path = "languagetool-profile.approved.json"
 language_tool_rule_ids = []
 language_tool_categories = []
 language_tool_excluded_categories = []

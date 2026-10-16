@@ -1,0 +1,434 @@
+{
+  "schema_version": "languagetool-evaluation-bank-1.0",
+  "synthetic": true,
+  "privacy": {
+    "contains_raw_institutional_text": false,
+    "safe_for_version_control": true
+  },
+  "summary": {
+    "pairs": 30,
+    "cases": 60
+  },
+  "cases": [
+    {
+      "case_id": "LT-SYN-001-before",
+      "pair_id": "LT-SYN-001",
+      "category": "spelling",
+      "fragment": "El área entregó la documentazión completa para integrar el expediente solicitado.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-001-after",
+      "pair_id": "LT-SYN-001",
+      "category": "spelling",
+      "fragment": "El área entregó la documentación completa para integrar el expediente solicitado.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-002-before",
+      "pair_id": "LT-SYN-002",
+      "category": "spelling",
+      "fragment": "La unidad realizó la fiscalisación conforme al programa anual aprobado.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-002-after",
+      "pair_id": "LT-SYN-002",
+      "category": "spelling",
+      "fragment": "La unidad realizó la fiscalización conforme al programa anual aprobado.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-003-before",
+      "pair_id": "LT-SYN-003",
+      "category": "spelling",
+      "fragment": "El informe incluyó una recomendazión dirigida a la entidad fiscalizada.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-003-after",
+      "pair_id": "LT-SYN-003",
+      "category": "spelling",
+      "fragment": "El informe incluyó una recomendación dirigida a la entidad fiscalizada.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-004-before",
+      "pair_id": "LT-SYN-004",
+      "category": "spelling",
+      "fragment": "La documentación fue remitida para su revición por el área responsable.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-004-after",
+      "pair_id": "LT-SYN-004",
+      "category": "spelling",
+      "fragment": "La documentación fue remitida para su revisión por el área responsable.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-005-before",
+      "pair_id": "LT-SYN-005",
+      "category": "spelling",
+      "fragment": "La entidad presentó los comprobantes requerídos durante la auditoría practicada.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-005-after",
+      "pair_id": "LT-SYN-005",
+      "category": "spelling",
+      "fragment": "La entidad presentó los comprobantes requeridos durante la auditoría practicada.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-006-before",
+      "pair_id": "LT-SYN-006",
+      "category": "spelling",
+      "fragment": "El expediente contiene la informasión financiera correspondiente al ejercicio revisado.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-006-after",
+      "pair_id": "LT-SYN-006",
+      "category": "spelling",
+      "fragment": "El expediente contiene la información financiera correspondiente al ejercicio revisado.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-007-before",
+      "pair_id": "LT-SYN-007",
+      "category": "spelling",
+      "fragment": "La observación fue atendida mediante la acláración documental presentada oportunamente.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-007-after",
+      "pair_id": "LT-SYN-007",
+      "category": "spelling",
+      "fragment": "La observación fue atendida mediante la aclaración documental presentada oportunamente.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-008-before",
+      "pair_id": "LT-SYN-008",
+      "category": "spelling",
+      "fragment": "El grupo auditor verificó la existensia de controles internos suficientes.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-008-after",
+      "pair_id": "LT-SYN-008",
+      "category": "spelling",
+      "fragment": "El grupo auditor verificó la existencia de controles internos suficientes.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-009-before",
+      "pair_id": "LT-SYN-009",
+      "category": "spelling",
+      "fragment": "La cédula muestra el prosedimiento aplicado durante la revisión documental.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-009-after",
+      "pair_id": "LT-SYN-009",
+      "category": "spelling",
+      "fragment": "La cédula muestra el procedimiento aplicado durante la revisión documental.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-010-before",
+      "pair_id": "LT-SYN-010",
+      "category": "spelling",
+      "fragment": "La entidad justificó la diferensia identificada en los registros contables.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-010-after",
+      "pair_id": "LT-SYN-010",
+      "category": "spelling",
+      "fragment": "La entidad justificó la diferencia identificada en los registros contables.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-011-before",
+      "pair_id": "LT-SYN-011",
+      "category": "grammar",
+      "fragment": "Las áreas responsables presentó la información solicitada durante la auditoría.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-011-after",
+      "pair_id": "LT-SYN-011",
+      "category": "grammar",
+      "fragment": "Las áreas responsables presentaron la información solicitada durante la auditoría.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-012-before",
+      "pair_id": "LT-SYN-012",
+      "category": "grammar",
+      "fragment": "Los contratos revisados fue integrados correctamente en el expediente correspondiente.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-012-after",
+      "pair_id": "LT-SYN-012",
+      "category": "grammar",
+      "fragment": "Los contratos revisados fueron integrados correctamente en el expediente correspondiente.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-013-before",
+      "pair_id": "LT-SYN-013",
+      "category": "grammar",
+      "fragment": "La documentación comprobatoria fueron entregada dentro del plazo establecido originalmente.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-013-after",
+      "pair_id": "LT-SYN-013",
+      "category": "grammar",
+      "fragment": "La documentación comprobatoria fue entregada dentro del plazo establecido originalmente.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-014-before",
+      "pair_id": "LT-SYN-014",
+      "category": "grammar",
+      "fragment": "El área responsable remitieron los informes finales para su análisis.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-014-after",
+      "pair_id": "LT-SYN-014",
+      "category": "grammar",
+      "fragment": "El área responsable remitió los informes finales para su análisis.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-015-before",
+      "pair_id": "LT-SYN-015",
+      "category": "grammar",
+      "fragment": "Las observaciones determinada fueron comunicadas formalmente a la entidad fiscalizada.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-015-after",
+      "pair_id": "LT-SYN-015",
+      "category": "grammar",
+      "fragment": "Las observaciones determinadas fueron comunicadas formalmente a la entidad fiscalizada.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-016-before",
+      "pair_id": "LT-SYN-016",
+      "category": "grammar",
+      "fragment": "Cada una de las unidades entregaron su informe técnico correspondiente.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-016-after",
+      "pair_id": "LT-SYN-016",
+      "category": "grammar",
+      "fragment": "Cada una de las unidades entregó su informe técnico correspondiente.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-017-before",
+      "pair_id": "LT-SYN-017",
+      "category": "grammar",
+      "fragment": "La relación de contratos revisados contienen los importes efectivamente pagados.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-017-after",
+      "pair_id": "LT-SYN-017",
+      "category": "grammar",
+      "fragment": "La relación de contratos revisados contiene los importes efectivamente pagados.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-018-before",
+      "pair_id": "LT-SYN-018",
+      "category": "grammar",
+      "fragment": "Los resultados de la auditoría fue presentado ante el comité técnico.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-018-after",
+      "pair_id": "LT-SYN-018",
+      "category": "grammar",
+      "fragment": "Los resultados de la auditoría fueron presentados ante el comité técnico.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-019-before",
+      "pair_id": "LT-SYN-019",
+      "category": "grammar",
+      "fragment": "La entidad y el proveedor presentó documentación adicional durante la revisión.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-019-after",
+      "pair_id": "LT-SYN-019",
+      "category": "grammar",
+      "fragment": "La entidad y el proveedor presentaron documentación adicional durante la revisión.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-020-before",
+      "pair_id": "LT-SYN-020",
+      "category": "grammar",
+      "fragment": "Ninguna de las aclaraciones fueron suficiente para solventar la observación.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-020-after",
+      "pair_id": "LT-SYN-020",
+      "category": "grammar",
+      "fragment": "Ninguna de las aclaraciones fue suficiente para solventar la observación.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-021-before",
+      "pair_id": "LT-SYN-021",
+      "category": "punctuation",
+      "fragment": "La entidad presentó el informe , pero omitió los anexos requeridos.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-021-after",
+      "pair_id": "LT-SYN-021",
+      "category": "punctuation",
+      "fragment": "La entidad presentó el informe, pero omitió los anexos requeridos.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-022-before",
+      "pair_id": "LT-SYN-022",
+      "category": "punctuation",
+      "fragment": "El área revisó los contratos;sin embargo, faltaron dos expedientes.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-022-after",
+      "pair_id": "LT-SYN-022",
+      "category": "punctuation",
+      "fragment": "El área revisó los contratos; sin embargo, faltaron dos expedientes.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-023-before",
+      "pair_id": "LT-SYN-023",
+      "category": "punctuation",
+      "fragment": "La auditoría verificó  los registros y documentó los resultados obtenidos.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-023-after",
+      "pair_id": "LT-SYN-023",
+      "category": "punctuation",
+      "fragment": "La auditoría verificó los registros y documentó los resultados obtenidos.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-024-before",
+      "pair_id": "LT-SYN-024",
+      "category": "punctuation",
+      "fragment": "La entidad informó que entregaría los anexos,sin precisar una fecha.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-024-after",
+      "pair_id": "LT-SYN-024",
+      "category": "punctuation",
+      "fragment": "La entidad informó que entregaría los anexos, sin precisar una fecha.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-025-before",
+      "pair_id": "LT-SYN-025",
+      "category": "punctuation",
+      "fragment": "El expediente contiene contratos , facturas y comprobantes de pago.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-025-after",
+      "pair_id": "LT-SYN-025",
+      "category": "punctuation",
+      "fragment": "El expediente contiene contratos, facturas y comprobantes de pago.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-026-before",
+      "pair_id": "LT-SYN-026",
+      "category": "institutional_noise",
+      "fragment": "La ASF revizó el oficio ASF-2026-001 y confirmó el importe de $1,250.00.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-026-after",
+      "pair_id": "LT-SYN-026",
+      "category": "institutional_noise",
+      "fragment": "La ASF revisó el oficio ASF-2026-001 y confirmó el importe de $1,250.00.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-027-before",
+      "pair_id": "LT-SYN-027",
+      "category": "institutional_noise",
+      "fragment": "La UAA verificó el 25.0% y documéntó el resultado el 01/02/2026.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-027-after",
+      "pair_id": "LT-SYN-027",
+      "category": "institutional_noise",
+      "fragment": "La UAA verificó el 25.0% y documentó el resultado el 01/02/2026.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-028-before",
+      "pair_id": "LT-SYN-028",
+      "category": "institutional_noise",
+      "fragment": "El artículo 12 del Reglamento fue análizado por el equipo auditor.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-028-after",
+      "pair_id": "LT-SYN-028",
+      "category": "institutional_noise",
+      "fragment": "El artículo 12 del Reglamento fue analizado por el equipo auditor.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-029-before",
+      "pair_id": "LT-SYN-029",
+      "category": "institutional_noise",
+      "fragment": "La SHCP informó que el monto de $3,131,988.77 estaba concíliado.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-029-after",
+      "pair_id": "LT-SYN-029",
+      "category": "institutional_noise",
+      "fragment": "La SHCP informó que el monto de $3,131,988.77 estaba conciliado.",
+      "expected_finding": false
+    },
+    {
+      "case_id": "LT-SYN-030-before",
+      "pair_id": "LT-SYN-030",
+      "category": "institutional_noise",
+      "fragment": "El CRF número 2026-15 fue intégrado al expediente de auditoría.",
+      "expected_finding": true
+    },
+    {
+      "case_id": "LT-SYN-030-after",
+      "pair_id": "LT-SYN-030",
+      "category": "institutional_noise",
+      "fragment": "El CRF número 2026-15 fue integrado al expediente de auditoría.",
+      "expected_finding": false
+    }
+  ]
+}

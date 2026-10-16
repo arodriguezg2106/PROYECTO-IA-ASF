@@ -159,9 +159,9 @@ Para activar la revisión contextual local, copie y ajuste `editorial-config.exa
 
 Un modelo sólo puede activarse normalmente si figura como `approved` en el registro versionado. Para una evaluación controlada de un modelo no aprobado debe agregarse `--editorial-experimental-model`; todas sus propuestas requieren revisión humana y esta opción no equivale a una aprobación.
 
-### LanguageTool local (opcional y experimental)
+### LanguageTool local (opcional y sujeto a compuerta)
 
-LanguageTool puede complementar las reglas ASF con sugerencias gramaticales locales. La integración no consulta la API pública: sólo admite `http://localhost`, `127.0.0.1` o `::1`, permanece desactivada por defecto y no incorpora sus resultados como errores confirmados. La instancia autónoma debe iniciarse por separado en el puerto configurado; el ejemplo supone `http://127.0.0.1:8081/v2`.
+LanguageTool puede complementar las reglas ASF con sugerencias gramaticales locales. La integración no consulta la API pública: sólo admite `http://localhost`, `127.0.0.1` o `::1`, permanece desactivada por defecto y no incorpora sus resultados como errores confirmados. La ejecución ordinaria exige un perfil aprobado con lista blanca; el modo experimental sólo sirve para descubrir y evaluar reglas. La instancia autónoma debe iniciarse por separado en el puerto configurado; el ejemplo supone `http://127.0.0.1:8081/v2`.
 
 Requiere Java 17 y una instalación autónoma de LanguageTool. Los valores predeterminados de [`scripts/start_languagetool.ps1`](scripts/start_languagetool.ps1) corresponden al equipo del autor; en otro equipo no se edita el script: las rutas se pasan como parámetros `-JavaExe` y `-LanguageToolDir`. El servidor se controla sin ventanas visibles y no se inicia automáticamente con Windows:
 
@@ -181,7 +181,7 @@ Para detenerlo:
 .\.venv\Scripts\python.exe -m revisor_crf .\data\sintetico.docx --mode final --review --editorial-review --editorial-language-tool --editorial-experimental-provider -o .\results\revision.json --html .\results\revision.html --markdown .\results\revision.md
 ```
 
-Las categorías y reglas admitidas pueden limitarse mediante `language_tool_categories` y `language_tool_rule_ids` en `editorial-config.example.toml`. Se usa el código `es` porque LanguageTool 6.6 no ofrece una variante `es-MX`. La categoría ortográfica `TYPOS` está habilitada y se filtran automáticamente siglas reconocidas, fragmentos demasiado cortos y términos incluidos expresamente en `language_tool_accepted_terms`. No se descarta una palabra común sólo por parecer nombre propio. Toda coincidencia se marca `possible`, `requires_human_review` y método `language_tool`; el fallo o tiempo de espera del servidor se registra sin detener el análisis determinista.
+Ese comando es exclusivamente experimental. La ejecución aprobada omite `--editorial-experimental-provider` y requiere `language_tool_profile_path` en la configuración. Las categorías y reglas admitidas pueden limitarse mediante `language_tool_categories` y `language_tool_rule_ids`, pero nunca pueden ampliar la lista blanca del perfil. Se usa el código `es` porque LanguageTool 6.6 no ofrece una variante `es-MX`. Se filtran siglas reconocidas, tablas, títulos, fragmentos fuera de 8–180 palabras y términos aceptados. Toda coincidencia se marca `possible`, `requires_human_review` y método `language_tool`; una falla no detiene el análisis determinista. El procedimiento, los umbrales y el resultado vigente se documentan en [`docs/evaluacion_languagetool.md`](docs/evaluacion_languagetool.md).
 
 El reporte HTML presenta primero las validaciones de tablas y cifras, después concordancia, claridad y ortografía. Las incidencias de formato se agrupan por regla, mensaje y estado dentro de un bloque plegable secundario; se conservan todas sus ubicaciones para auditoría sin dominar el conteo principal. La opción `--sarif .\results\revision.sarif` genera además un archivo SARIF 2.1.0 compatible con visores especializados, sin sustituir los reportes JSON, HTML o Markdown.
 

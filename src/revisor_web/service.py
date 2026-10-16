@@ -70,14 +70,28 @@ class ReviewService:
 
         start_time = time.perf_counter()
         try:
-            # Reutilización de la API pública existente de revisor_crf
-            # Ollama y LanguageTool están estrictamente deshabilitados en este MVP
+            # Reutilización de la API pública existente de revisor_crf. Ollama
+            # permanece desactivado; LanguageTool sólo opera con perfil aprobado.
+            editorial_override = None
+            if self.config.editorial_enabled:
+                from revisor_crf.editorial import EditorialConfig
+                editorial_override = EditorialConfig(
+                    language_tool_enabled=self.config.language_tool_enabled,
+                    language_tool_experimental=False,
+                    language_tool_profile_path=(
+                        str(self.config.language_tool_profile)
+                        if self.config.language_tool_profile else None
+                    ),
+                    language_tool_url=self.config.language_tool_url,
+                )
             result = review_document(
                 input_path,
                 mode="final",
                 catalog_path=None,
                 semantic=False,
-                editorial=False,
+                editorial=self.config.editorial_enabled,
+                editorial_language_tool=self.config.language_tool_enabled,
+                editorial_config_override=editorial_override,
             )
 
             paths = self.storage.get_output_paths(job_id)
@@ -94,6 +108,9 @@ class ReviewService:
             duration = time.perf_counter() - start_time
 
             # Resumen técnico sin contener texto confidencial de los párrafos
+            editorial_review = result.get("editorial_review") or {}
+            language_tool = editorial_review.get("language_tool") or {}
+            language_tool_profile = language_tool.get("profile") or {}
             summary = {
                 "schema_version": result.get("schema_version"),
                 "alerts_count": len(result.get("alerts", [])),
@@ -107,6 +124,16 @@ class ReviewService:
                 "excluded": result.get("summary", {}).get("excluded", 0),
                 "sha256": result.get("source", {}).get("sha256", ""),
                 "duration_seconds": round(duration, 3),
+                "editorial_findings_count": len(editorial_review.get("findings", [])),
+                "language_tool": {
+                    "enabled": bool(language_tool.get("enabled")),
+                    "status": language_tool.get("status", "disabled"),
+                    "provider_version": "6.6" if language_tool.get("enabled") else None,
+                    "profile_version": language_tool_profile.get("profile_version"),
+                    "duration_seconds": language_tool.get("duration_seconds", 0.0),
+                    "calls": language_tool.get("calls", 0),
+                    "errors_count": len(language_tool.get("errors") or []),
+                },
             }
 
             completed_meta = self.storage.update_job(job_id, status="terminado", summary=summary)

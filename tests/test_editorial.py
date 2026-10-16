@@ -167,7 +167,7 @@ class StaticLanguageTool:
                  "rule":{"id":"MORFOLOGIK_RULE_ES","category":{"id":"TYPOS"}}}]
 
 def test_language_tool_is_experimental_local_and_reported(tmp_path):
-    path=make_doc(tmp_path,"La entidad entrego el informe.")
+    path=make_doc(tmp_path,"La entidad entrego el informe completo durante la revisión.")
     report=review_document(path,editorial=True,editorial_language_tool=True,
                            editorial_experimental_provider=True,
                            language_tool_provider=StaticLanguageTool())["editorial_review"]
@@ -191,6 +191,14 @@ def test_language_tool_rejects_non_loopback_and_requires_gate(tmp_path):
     except ValueError as exc: assert "loopback" in str(exc)
     else: assert False
 
+def test_editorial_rejects_two_linguistic_providers(tmp_path):
+    path=make_doc(tmp_path,"La entidad entregó el informe completo durante la revisión.")
+    config=EditorialConfig(ollama_enabled=True,language_tool_enabled=True,
+                           language_tool_experimental=True)
+    try: review_document(path,editorial=True,editorial_config_override=config)
+    except ValueError as exc: assert "un proveedor lingüístico" in str(exc)
+    else: assert False
+
 class CountingLanguageTool:
     endpoint="http://127.0.0.1:8081/v2/check"; language="es"
     def __init__(self): self.calls=0
@@ -212,7 +220,7 @@ def test_language_tool_cache_uses_hash_and_never_stores_text(tmp_path):
     try: review_document(make_doc(tmp_path,"Texto."),editorial=True,
                          editorial_language_tool=True,
                          language_tool_provider=StaticLanguageTool())
-    except ValueError as exc: assert "experimental" in str(exc).lower()
+    except ValueError as exc: assert "perfil aprobado" in str(exc).lower()
     else: assert False
 
 def test_editorial_html_groups_repeated_occurrences(tmp_path):

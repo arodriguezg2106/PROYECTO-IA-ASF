@@ -658,8 +658,6 @@ def review_document(path: str | Path, mode: str = "final", catalog_path: str | P
             from dataclasses import replace
             editorial_config = replace(editorial_config, language_tool_enabled=True,
                                        language_tool_experimental=editorial_experimental_provider)
-            if not editorial_config.language_tool_experimental:
-                raise ValueError("LanguageTool requiere --editorial-experimental-provider.")
         if editorial_config.enabled:
             editorial_report = review_editorial(source, document, editorial_config, provider=editorial_provider,
                                                 inventory=inventory,

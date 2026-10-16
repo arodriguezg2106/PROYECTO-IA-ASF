@@ -65,9 +65,34 @@ class WebConfig:
         )
     )
 
+    # Revisión editorial central. LanguageTool requiere lista blanca aprobada y
+    # queda desactivado hasta superar su compuerta reproducible.
+    editorial_enabled: bool = _env_bool("REVISOR_WEB_EDITORIAL_ENABLED")
+    language_tool_enabled: bool = _env_bool("REVISOR_WEB_LANGUAGETOOL_ENABLED")
+    language_tool_profile: Path | None = (
+        Path(os.environ["REVISOR_WEB_LANGUAGETOOL_PROFILE"])
+        if os.getenv("REVISOR_WEB_LANGUAGETOOL_PROFILE") else None
+    )
+    language_tool_url: str = os.getenv(
+        "REVISOR_WEB_LANGUAGETOOL_URL", "http://127.0.0.1:8081/v2"
+    )
+
     # Integración futura de Ollama: estrictamente interna desde el backend
     # En este MVP permanece desactivada y NUNCA se expone a la red ni al navegador.
     ollama_future_integration_enabled: bool = False
+
+    def __post_init__(self) -> None:
+        if self.language_tool_enabled:
+            if not self.editorial_enabled:
+                raise ValueError("LanguageTool web requiere revisión editorial habilitada.")
+            if self.max_concurrent_jobs != 1:
+                raise ValueError("LanguageTool web requiere REVISOR_WEB_MAX_CONCURRENT_JOBS=1.")
+            if self.language_tool_profile is None:
+                raise ValueError("LanguageTool web requiere un perfil aprobado.")
+            from revisor_crf.language_tool import LanguageToolProvider
+            from revisor_crf.language_tool_profile import load_language_tool_profile
+            LanguageToolProvider(self.language_tool_url)
+            load_language_tool_profile(self.language_tool_profile)
 
     @property
     def max_file_size_bytes(self) -> int:

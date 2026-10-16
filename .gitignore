@@ -23,6 +23,8 @@ data/
 tests/data/*
 !tests/data/numeric_cases.json
 !tests/data/editorial_paired_synthetic.json
+!tests/data/languagetool_synthetic.json
+!tests/data/languagetool_candidate_profile.json
 input/
 output/
 outputs/

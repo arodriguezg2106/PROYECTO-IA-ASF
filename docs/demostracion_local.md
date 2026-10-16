@@ -2,7 +2,8 @@
 
 Esta modalidad sirve para presentar la idea desde la computadora de desarrollo.
 Ejecuta el motor determinístico y la web real, pero **no** usa SQL Server, IIS,
-Ollama, servicios externos ni documentos institucionales.
+Ollama, servicios externos ni documentos institucionales. LanguageTool permanece
+apagado mientras no exista un perfil aprobado.
 
 ## Preparación única
 
@@ -33,6 +34,18 @@ Para usar otro puerto:
 ```powershell
 .\scripts\start_local_demo.ps1 -Port 8080
 ```
+
+Para mostrar también las reglas editoriales determinísticas ASF, sin Ollama ni
+LanguageTool:
+
+```powershell
+.\scripts\start_local_demo.ps1 -Editorial
+```
+
+El parámetro `-LanguageTool` no debe utilizarse con el perfil candidato actual:
+la compuerta vigente fue rechazada por exhaustividad insuficiente. Cuando una
+evaluación futura genere un perfil aprobado, el script exigirá además
+`-Editorial`, `-LanguageToolProfile` y limitará la web a un trabajo concurrente.
 
 Para detenerla, presione `Ctrl+C` en PowerShell. Los trabajos se guardan en
 `tmp/revisor_web_jobs`, carpeta ignorada por Git, y expiran según el TTL local.
