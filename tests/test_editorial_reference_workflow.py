@@ -131,6 +131,56 @@ def test_second_review_detects_fixed_evidence_changes(tmp_path):
         import_second_review(blind_book, blind_manifest, validation, corpus, tmp_path / "second.json")
 
 
+def test_second_review_accepts_justified_terminal_answer(tmp_path):
+    validation, corpus = _sources(tmp_path)
+    blind_book, blind_manifest = tmp_path / "blind.xlsx", tmp_path / "manifest.json"
+    build_blind_package(validation, corpus, blind_book, blind_manifest)
+    _fill_second(blind_book)
+    workbook = load_workbook(blind_book)
+    sheet = workbook["Segunda revisión"]
+    sheet.cell(2, 5).value = "No puedo determinarlo"
+    for column in range(6, 10):
+        sheet.cell(2, column).value = None
+    sheet.cell(2, 10).value = "La evidencia disponible no permite resolver el caso."
+    workbook.save(blind_book)
+
+    result = import_second_review(
+        blind_book, blind_manifest, validation, corpus, tmp_path / "second.json"
+    )
+    assert result["summary"]["terminal_justified"] == 1
+    assert result["cases"][0]["decision"] == {
+        "usable": "No puedo determinarlo",
+        "category": None,
+        "interpretation": None,
+        "improves": None,
+        "protected": None,
+    }
+
+
+@pytest.mark.parametrize("explanation,partial", [(None, False), ("Explicación", True)])
+def test_second_review_rejects_unjustified_or_partial_terminal_answer(
+    tmp_path, explanation, partial
+):
+    validation, corpus = _sources(tmp_path)
+    blind_book, blind_manifest = tmp_path / "blind.xlsx", tmp_path / "manifest.json"
+    build_blind_package(validation, corpus, blind_book, blind_manifest)
+    _fill_second(blind_book)
+    workbook = load_workbook(blind_book)
+    sheet = workbook["Segunda revisión"]
+    sheet.cell(2, 5).value = "No puedo determinarlo"
+    for column in range(6, 10):
+        sheet.cell(2, column).value = None
+    if partial:
+        sheet.cell(2, 6).value = "Coherencia o claridad"
+    sheet.cell(2, 10).value = explanation
+    workbook.save(blind_book)
+
+    with pytest.raises(ValueError, match="explicación|vacías"):
+        import_second_review(
+            blind_book, blind_manifest, validation, corpus, tmp_path / "second.json"
+        )
+
+
 def test_bank_requires_adjudication_for_every_disagreement(tmp_path):
     validation, corpus = _sources(tmp_path)
     blind_book, blind_manifest = tmp_path / "blind.xlsx", tmp_path / "manifest.json"

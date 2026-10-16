@@ -149,12 +149,25 @@ def build_blind_package(validation_path, corpus_path, workbook_path, manifest_pa
     _add_validations(sheet, 2, len(selected) + 1, 5)
     red = PatternFill("solid", fgColor="FFC7CE")
     sheet.conditional_formatting.add(
-        f"E2:I{len(selected)+1}", FormulaRule(formula=["COUNTBLANK($E2:$I2)>0"], fill=red)
+        f"E2:J{len(selected)+1}",
+        FormulaRule(
+            formula=[
+                'OR($E2="",AND($E2="Sí",COUNTBLANK($F2:$I2)>0),'
+                'AND(OR($E2="No",$E2="No puedo determinarlo"),'
+                'COUNTBLANK($F2:$I2)>0,COUNTBLANK($F2:$I2)<4),'
+                'AND(OR($E2="No",$E2="No puedo determinarlo"),'
+                'COUNTBLANK($F2:$I2)=4,$J2=""))'
+            ],
+            fill=red,
+        ),
     )
     instructions = workbook.create_sheet("Instrucciones")
     instructions.append(["Paquete ciego de segunda revisión"])
     instructions.append(["Evalúe cada caso sin consultar la primera revisión. No edite las columnas A:D."])
-    instructions.append(["Complete obligatoriamente las cinco decisiones. El nombre no se importará."])
+    instructions.append([
+        "Si la primera respuesta es Sí, complete las cinco decisiones. Si es No o No puedo "
+        "determinarlo, puede dejar 2 a 5 vacías, pero debe explicar el motivo. El nombre no se importará."
+    ])
     Path(workbook_path).parent.mkdir(parents=True, exist_ok=True)
     workbook.save(workbook_path)
     manifest = {
@@ -176,6 +189,26 @@ def _decision(values, start):
     if invalid:
         raise ValueError("Hay decisiones vacías o no permitidas: " + ", ".join(key for key, _ in invalid))
     return decision
+
+
+def _second_review_decision(values, start, explanation):
+    """Admite respuestas terminales justificadas sin inventar decisiones no aplicables."""
+    usable = values[start]
+    if usable not in OPTIONS["usable"]:
+        raise ValueError("La decisión sobre utilidad está vacía o no está permitida.")
+    remaining = values[start + 1:start + 5]
+    terminal = usable in {"No", "No puedo determinarlo"}
+    if terminal and all(value in (None, "") for value in remaining):
+        if not str(explanation or "").strip():
+            raise ValueError("Una respuesta terminal sin decisiones 2 a 5 requiere explicación.")
+        return {
+            "usable": usable,
+            "category": None,
+            "interpretation": None,
+            "improves": None,
+            "protected": None,
+        }
+    return _decision(values, start)
 
 
 def import_second_review(workbook_path, manifest_path, validation_path, corpus_path, output_path):
@@ -204,7 +237,7 @@ def import_second_review(workbook_path, manifest_path, validation_path, corpus_p
         for index, (expected, actual) in enumerate(zip(canonical, row[:4])):
             if expected != actual and not (expected in (None, "") and actual in (None, "")):
                 fixed_changes.append({"blind_id": item["blind_id"], "column": BLIND_HEADERS[index]})
-        decision = _decision(row, 4)
+        decision = _second_review_decision(row, 4, row[9])
         imported.append({
             "blind_id": item["blind_id"], "evidence_id": item["evidence_id"],
             "decision": decision, "explanation": row[9], "review_date": _json_value(row[11]),
@@ -220,14 +253,25 @@ def import_second_review(workbook_path, manifest_path, validation_path, corpus_p
                    "manifest_sha256": _file_hash(manifest_path),
                    "validation_sha256": _file_hash(validation_path),
                    "corpus_sha256": _file_hash(corpus_path)},
-        "summary": {"cases": len(imported)}, "cases": imported,
+        "summary": {
+            "cases": len(imported),
+            "terminal_justified": sum(
+                item["decision"]["usable"] in {"No", "No puedo determinarlo"}
+                and item["decision"]["category"] is None
+                for item in imported
+            ),
+        },
+        "cases": imported,
     }
     _write_json(output_path, payload)
     return payload
 
 
 def _decision_text(decision):
-    return " | ".join(f"{key}={decision[key]}" for key in DECISION_KEYS)
+    return " | ".join(
+        f"{key}={decision[key] if decision.get(key) is not None else 'No aplica'}"
+        for key in DECISION_KEYS
+    )
 
 
 def build_adjudication_workbook(validation_path, second_path, corpus_path, workbook_path, manifest_path):

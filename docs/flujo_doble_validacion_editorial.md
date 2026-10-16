@@ -15,9 +15,11 @@ python scripts/editorial_reference_workflow.py prepare
 
 El resultado contiene 31 referencias en
 `results/editorial_second_review/segunda_revision_ciega.xlsx`. El segundo
-revisor debe completar las cinco decisiones sin editar las columnas de
-evidencia. El libro omite documento, resultado, decisión y explicación del
-primer revisor.
+revisor debe completar las cinco decisiones cuando la primera respuesta sea
+`Sí`. Si responde `No` o `No puedo determinarlo`, puede dejar las decisiones 2
+a 5 vacías siempre que incluya una explicación. Esos campos se importan como
+`null`, no como decisiones inventadas. No debe editar las columnas de evidencia.
+El libro omite documento, resultado, decisión y explicación del primer revisor.
 
 Una vez contestado, importarlo con el manifiesto generado junto al paquete:
 
