@@ -33,6 +33,8 @@ IIS, autenticación corporativa y documentos reales quedan fuera de esta etapa.
 
 - Equipo: computadora de escritorio con Intel Core i5 de sexta generación,
   8 GB de RAM y tarjeta gráfica todavía no identificada.
+- La ruta recomendada es Linux de servidor sin escritorio gráfico. Windows se
+  conserva como alternativa para la primera prueba si no se desea reinstalar.
 - Ollama para Windows requiere Windows 10 22H2 o posterior.
 - Ollama escucha inicialmente en `http://127.0.0.1:11434`.
 - `qwen3.5:9b` ocupa aproximadamente 7.6 GB descargado y
@@ -42,11 +44,16 @@ IIS, autenticación corporativa y documentos reales quedan fuera de esta etapa.
   de forma confiable los candidatos 9B/12B.
 - Recomendación provisional: 16 GB como mínimo para intentar 9B y 32 GB como
   configuración preferible para evaluar 9B/12B por CPU o descarga parcial.
+- Con los 8 GB actuales, Linux puede liberar más memoria que Windows, pero no
+  sustituye la ampliación física. El objetivo es saber si el modelo 9B puede
+  evaluarse lentamente, no prometer rendimiento interactivo.
 
 Referencias oficiales:
 
 - [Ollama para Windows](https://docs.ollama.com/windows)
+- [Ollama para Linux](https://docs.ollama.com/linux)
 - [Compatibilidad de GPU](https://docs.ollama.com/gpu)
+- [Memoria, concurrencia y caché de Ollama](https://docs.ollama.com/faq)
 - [API local de Ollama](https://docs.ollama.com/api/introduction)
 - [Qwen 3.5 9B](https://ollama.com/library/qwen3.5:9b)
 - [Gemma 3 12B](https://ollama.com/library/gemma3:12b)
@@ -90,7 +97,7 @@ Guardar o copiar la salida. Antes de elegir un modelo se necesitan estos datos:
 | Tarjeta gráfica exacta | Pendiente |
 | VRAM detectada | Pendiente |
 | Controlador | Pendiente |
-| Windows y versión | Pendiente |
+| Sistema actual y versión | Pendiente |
 | Espacio libre | Pendiente |
 
 `AdapterRAM` puede ser impreciso en algunas tarjetas. Para NVIDIA se preferirá
@@ -113,34 +120,137 @@ Una GPU compatible acelera el proceso, pero la RAM sigue siendo necesaria si
 el modelo no cabe por completo en VRAM. Un i5 de sexta generación puede ejecutar
 modelos mediante CPU, aunque una evaluación completa puede tardar horas.
 
+### Decisión del sistema operativo
+
+Si el inventario confirma compatibilidad de la GPU en Linux, se utilizará
+**Ubuntu Server LTS sin entorno gráfico**. Esta opción reduce servicios y memoria
+residentes, facilita ejecutar Ollama mediante `systemd` y permite administrar el
+equipo por SSH.
+
+Antes de reemplazar Windows:
+
+1. respaldar cualquier archivo que deba conservarse;
+2. crear un USB arrancable con una distribución Linux que permita modo vivo;
+3. iniciar primero una sesión en modo vivo, sin instalar;
+4. comprobar red, disco y GPU;
+5. instalar solo después de confirmar el inventario y el respaldo.
+
+No se formateará ningún disco durante la etapa de diagnóstico. Si la GPU no es
+compatible en Linux, se comparará con Windows antes de tomar una decisión.
+
 ## Fase 3: preparar el equipo sin datos reales
+
+### Ruta A: Linux de servidor, recomendada
+
+1. Actualizar BIOS o firmware solo si el fabricante lo exige para la GPU o una
+   ampliación de RAM; no hacerlo como paso rutinario.
+2. Probar Linux desde USB en modo vivo y confirmar GPU, red y almacenamiento.
+3. Instalar Ubuntu Server LTS sin escritorio únicamente después del respaldo.
+4. Habilitar SSH durante la instalación para administrar el equipo sin monitor.
+5. Reservar al menos 25 GB libres para Ollama, un modelo y resultados. Se
+   prefiere SSD; el uso intensivo de swap en un disco mecánico será demasiado
+   lento para esta evaluación.
+6. Instalar primero el controlador compatible de la GPU y comprobarlo. Para
+   NVIDIA:
+
+```bash
+nvidia-smi
+```
+
+7. Instalar Ollama por el procedimiento oficial:
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+sudo systemctl status ollama
+ollama --version
+```
+
+8. Crear una personalización del servicio:
+
+```bash
+sudo systemctl edit ollama
+```
+
+Agregar:
+
+```ini
+[Service]
+Environment="OLLAMA_NO_CLOUD=1"
+Environment="OLLAMA_MAX_LOADED_MODELS=1"
+Environment="OLLAMA_NUM_PARALLEL=1"
+Environment="OLLAMA_CONTEXT_LENGTH=2048"
+Environment="OLLAMA_KV_CACHE_TYPE=q8_0"
+Environment="OLLAMA_KEEP_ALIVE=5m"
+```
+
+Aplicar y comprobar:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart ollama
+sudo systemctl status ollama
+journalctl -u ollama -n 50 --no-pager
+```
+
+`OLLAMA_KV_CACHE_TYPE=q8_0` reduce aproximadamente a la mitad la memoria de la
+caché K/V cuando el backend admite Flash Attention, con una pérdida normalmente
+muy pequeña. No se usará `q4_0` durante la evaluación inicial porque puede
+afectar más la calidad.
+
+### Memoria virtual
+
+El swap será únicamente una red de seguridad. Antes de crearlo se comprobarán
+el tipo de disco, el espacio disponible y si ya existe swap:
+
+```bash
+free -h
+swapon --show
+lsblk -o NAME,TYPE,SIZE,FSTYPE,MOUNTPOINTS,MODEL
+```
+
+Si hay SSD y no existe swap suficiente, se podrá preparar entre 8 y 16 GB tras
+revisar el estado del disco. Si el modelo trabaja continuamente desde swap, el
+resultado se marcará como no apto para demostración interactiva aunque consiga
+terminar las pruebas.
+
+### Ruta B: Windows, alternativa sin reinstalación
 
 1. Actualizar el controlador de la GPU desde el fabricante.
 2. Confirmar que Windows cumple la versión requerida.
-3. Reservar por lo menos 25 GB libres para Ollama, un modelo y resultados.
+3. Reservar por lo menos 25 GB libres.
 4. Instalar Ollama desde su sitio oficial.
-5. Desactivar las funciones cloud para mantener el laboratorio local:
+5. Desactivar las funciones cloud:
 
 ```powershell
 [Environment]::SetEnvironmentVariable('OLLAMA_NO_CLOUD', '1', 'User')
 ```
 
-6. Cerrar Ollama desde el área de notificación y volverlo a iniciar para que
+6. Limitar Ollama a un modelo, una solicitud y contexto de 2,048 tokens:
+
+```powershell
+[Environment]::SetEnvironmentVariable('OLLAMA_MAX_LOADED_MODELS', '1', 'User')
+[Environment]::SetEnvironmentVariable('OLLAMA_NUM_PARALLEL', '1', 'User')
+[Environment]::SetEnvironmentVariable('OLLAMA_CONTEXT_LENGTH', '2048', 'User')
+[Environment]::SetEnvironmentVariable('OLLAMA_KV_CACHE_TYPE', 'q8_0', 'User')
+[Environment]::SetEnvironmentVariable('OLLAMA_KEEP_ALIVE', '5m', 'User')
+```
+
+7. Cerrar Ollama desde el área de notificación y volverlo a iniciar para que
    lea la variable.
-7. Confirmar la instalación:
+8. Confirmar la instalación:
 
 ```powershell
 ollama --version
 ollama list
 ```
 
-No configurar todavía `OLLAMA_HOST=0.0.0.0:11434`. La primera evaluación se
-hará enteramente en la computadora servidor mediante `localhost`.
+En ambas rutas, no configurar todavía `OLLAMA_HOST=0.0.0.0:11434`. La primera
+evaluación se hará enteramente en la computadora servidor mediante `localhost`.
 
 ## Fase 4: prueba mínima de Ollama
 
 Con los 8 GB actuales, descargar inicialmente el modelo pequeño usado solo para
-comprobar el conducto técnico:
+comprobar el conducto técnico. En Linux o Windows:
 
 ```powershell
 ollama pull qwen3.5:4b
@@ -148,6 +258,22 @@ ollama run qwen3.5:4b "Responde únicamente con la palabra listo."
 ```
 
 Probar la API local:
+
+En Linux:
+
+```bash
+curl http://127.0.0.1:11434/api/generate -d '{
+  "model": "qwen3.5:4b",
+  "prompt": "Responde únicamente con la palabra listo.",
+  "stream": false,
+  "keep_alive": "5m",
+  "options": {"num_ctx": 2048, "temperature": 0}
+}'
+
+ollama ps
+```
+
+En Windows PowerShell:
 
 ```powershell
 $body = @{
@@ -167,7 +293,18 @@ ollama ps
 ```
 
 Registrar del resultado de `ollama ps` si el procesamiento fue `CPU`, `GPU` o
-mixto. Durante la prueba observar también Administrador de tareas > Rendimiento.
+mixto. En Windows observar también Administrador de tareas > Rendimiento. En
+Linux se puede vigilar en otra terminal:
+
+```bash
+watch -n 2 free -h
+```
+
+Para una GPU NVIDIA:
+
+```bash
+watch -n 2 nvidia-smi
+```
 
 ## Fase 5: trasladar el código de manera segura
 
@@ -179,7 +316,8 @@ trabajar en casa hay que elegir uno de estos mecanismos:
 3. copiar únicamente el código fuente limpio, excluyendo `.venv/`, `results/`,
    `data/`, documentos reales y Excel.
 
-Un bundle contiene únicamente archivos rastreados por Git:
+Un bundle contiene únicamente archivos rastreados por Git. Se creará fuera del
+repositorio o se eliminará al terminar la transferencia:
 
 ```powershell
 git bundle create revisor-crf-main.bundle main
@@ -192,6 +330,15 @@ git clone .\revisor-crf-main.bundle revisor-crf
 Set-Location .\revisor-crf
 ```
 
+En Linux, las instrucciones equivalentes son:
+
+```bash
+git clone ./revisor-crf-main.bundle revisor-crf
+cd revisor-crf
+git status --short
+find results data -type f 2>/dev/null
+```
+
 Antes de continuar, comprobar que no llegaron datos privados:
 
 ```powershell
@@ -202,7 +349,18 @@ Get-ChildItem .\data -Recurse -ErrorAction SilentlyContinue
 
 ## Fase 6: preparar Python y verificar el proyecto
 
-Desde la raíz del repositorio:
+Desde la raíz del repositorio, en Linux:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+pip install -e .
+python -m pytest -q
+```
+
+O en Windows PowerShell:
 
 ```powershell
 py -m venv .venv
@@ -217,7 +375,14 @@ La línea base al preparar esta guía es de **242 pruebas aprobadas**. Si el
 número cambia por commits posteriores, se utilizará la línea base documentada
 en ese momento y no se continuará si aparecen fallos.
 
-Ejecutar el preflight, que no contacta Ollama:
+Ejecutar el preflight, que no contacta Ollama. En Linux:
+
+```bash
+export PYTHONPATH='src:scripts'
+python scripts/evaluate_editorial_context.py --preflight
+```
+
+En Windows PowerShell:
 
 ```powershell
 $env:PYTHONPATH = 'src;scripts'
@@ -230,6 +395,20 @@ Esta fase solo se ejecutará si el inventario indica memoria suficiente. Probar
 los modelos secuencialmente, nunca al mismo tiempo.
 
 ### Qwen 3.5 9B
+
+En Linux:
+
+```bash
+ollama pull qwen3.5:9b
+export PYTHONPATH='src:scripts'
+python scripts/evaluate_editorial_context.py \
+  --synthetic-only \
+  --models qwen3.5:9b \
+  --available-models qwen3.5:9b \
+  --output results/editorial_context/qwen35_9b_synthetic.json
+```
+
+En Windows PowerShell:
 
 ```powershell
 ollama pull qwen3.5:9b
@@ -244,6 +423,21 @@ python scripts\evaluate_editorial_context.py `
 ### Gemma 3 12B
 
 Ejecutar solo si Qwen terminó y el equipo conserva suficiente memoria:
+
+En Linux:
+
+```bash
+ollama stop qwen3.5:9b
+ollama pull gemma3:12b
+export PYTHONPATH='src:scripts'
+python scripts/evaluate_editorial_context.py \
+  --synthetic-only \
+  --models gemma3:12b \
+  --available-models gemma3:12b \
+  --output results/editorial_context/gemma3_12b_synthetic.json
+```
+
+En Windows PowerShell:
 
 ```powershell
 ollama stop qwen3.5:9b
@@ -307,7 +501,7 @@ No guardar prompts ni texto institucional. Registrar únicamente:
 Detener la prueba y conservar los resultados si ocurre cualquiera de estos
 casos:
 
-- Windows empieza a intercambiar memoria continuamente y deja de responder;
+- el sistema empieza a intercambiar memoria continuamente y deja de responder;
 - el modelo no puede cargarse;
 - la temperatura del equipo o la GPU se vuelve insegura;
 - aparecen respuestas inválidas en una compuerta;
