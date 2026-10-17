@@ -2,6 +2,12 @@
 
 Lector y motor híbrido local para Word **DOCX**. Las reglas determinísticas funcionan sin servicios externos; opcionalmente, una capa semántica mediante Ollama relaciona cifras narrativas con conceptos y columnas de tablas sin enviar documentos a internet.
 
+Para retomar el proyecto desde otra computadora consulte
+[`docs/continuidad_trabajo_casa.md`](docs/continuidad_trabajo_casa.md). La
+preparación específica del laboratorio doméstico de Ollama está en
+[`docs/laboratorio_ollama_equipo_casa.md`](docs/laboratorio_ollama_equipo_casa.md)
+y utiliza únicamente datos sintéticos.
+
 ## Estructura
 
 ```text

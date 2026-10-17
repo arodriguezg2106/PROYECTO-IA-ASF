@@ -47,6 +47,8 @@ IIS, autenticación corporativa y documentos reales quedan fuera de esta etapa.
 - Con los 8 GB actuales, Linux puede liberar más memoria que Windows, pero no
   sustituye la ampliación física. El objetivo es saber si el modelo 9B puede
   evaluarse lentamente, no prometer rendimiento interactivo.
+- El repositorio publicado tiene una línea base de **248 pruebas**. LanguageTool
+  no forma parte de esta jornada y debe permanecer desactivado.
 
 Referencias oficiales:
 
@@ -306,37 +308,26 @@ Para una GPU NVIDIA:
 watch -n 2 nvidia-smi
 ```
 
-## Fase 5: trasladar el código de manera segura
+## Fase 5: obtener el código publicado
 
-El repositorio local contiene commits que podrían no estar publicados. Antes de
-trabajar en casa hay que elegir uno de estos mecanismos:
-
-1. clonar el repositorio remoto solo después de autorizar y realizar el `push`;
-2. crear un `git bundle` del historial local y llevarlo por un medio autorizado;
-3. copiar únicamente el código fuente limpio, excluyendo `.venv/`, `results/`,
-   `data/`, documentos reales y Excel.
-
-Un bundle contiene únicamente archivos rastreados por Git. Se creará fuera del
-repositorio o se eliminará al terminar la transferencia:
+El código se obtiene directamente del repositorio remoto. No copiar la carpeta
+de trabajo institucional ni usar USB para trasladar `results/`, `data/`, Excel
+o documentos. En Windows PowerShell:
 
 ```powershell
-git bundle create revisor-crf-main.bundle main
+git clone https://github.com/arodriguezg2106/PROYECTO-IA-ASF.git
+Set-Location .\PROYECTO-IA-ASF
+git status --short
+git log -1 --oneline
 ```
 
-En la computadora doméstica:
-
-```powershell
-git clone .\revisor-crf-main.bundle revisor-crf
-Set-Location .\revisor-crf
-```
-
-En Linux, las instrucciones equivalentes son:
+En Linux:
 
 ```bash
-git clone ./revisor-crf-main.bundle revisor-crf
-cd revisor-crf
+git clone https://github.com/arodriguezg2106/PROYECTO-IA-ASF.git
+cd PROYECTO-IA-ASF
 git status --short
-find results data -type f 2>/dev/null
+git log -1 --oneline
 ```
 
 Antes de continuar, comprobar que no llegaron datos privados:
@@ -371,7 +362,7 @@ pip install -e .
 python -m pytest -q
 ```
 
-La línea base al preparar esta guía es de **242 pruebas aprobadas**. Si el
+La línea base al preparar esta guía es de **248 pruebas aprobadas**. Si el
 número cambia por commits posteriores, se utilizará la línea base documentada
 en ese momento y no se continuará si aparecen fallos.
 
@@ -379,14 +370,14 @@ Ejecutar el preflight, que no contacta Ollama. En Linux:
 
 ```bash
 export PYTHONPATH='src:scripts'
-python scripts/evaluate_editorial_context.py --preflight
+python scripts/evaluate_editorial_context.py --preflight --synthetic-only
 ```
 
 En Windows PowerShell:
 
 ```powershell
 $env:PYTHONPATH = 'src;scripts'
-python scripts\evaluate_editorial_context.py --preflight
+python scripts\evaluate_editorial_context.py --preflight --synthetic-only
 ```
 
 ## Fase 7: evaluación sintética de candidatos
@@ -472,6 +463,23 @@ mantiene la IA desactivada. Para la demostración se preparará una de estas rut
 No se expondrá directamente la API de Ollama. Si ambos equipos están en casa,
 se utilizará la misma red local. Cualquier acceso desde otra ubicación requerirá
 una VPN autorizada y seguirá limitado a datos sintéticos.
+
+La primera conexión entre la laptop y el servidor doméstico se hará mediante un
+túnel SSH, manteniendo Ollama en `127.0.0.1` en ambas puntas. Desde la laptop:
+
+```powershell
+ssh -N -L 11434:127.0.0.1:11434 usuario@IP_DEL_SERVIDOR
+```
+
+Mientras esa terminal permanezca abierta, en otra terminal de la laptop:
+
+```powershell
+Invoke-RestMethod -Uri 'http://127.0.0.1:11434/api/tags'
+```
+
+Si responde, Revisor-CRF puede seguir usando su URL de loopback habitual sin
+publicar el puerto de Ollama. Esta prueba se hará sólo después de completar las
+pruebas locales en el servidor. No se configurará `OLLAMA_HOST=0.0.0.0:11434`.
 
 La integración visual con la web será un trabajo posterior: actualmente el MVP
 web desactiva Ollama de forma deliberada. Primero se valida modelo y rendimiento;

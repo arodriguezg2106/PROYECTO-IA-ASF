@@ -52,12 +52,27 @@ La compuerta contextual puntúa por defecto sólo los pares adjudicados como `Or
 
 ## Preflight sin Ollama
 
+Para una computadora doméstica sin banco real, el preflight debe limitarse al
+banco sintético:
+
 ```powershell
 $env:PYTHONPATH = "src;scripts"
-python scripts/evaluate_editorial_context.py --preflight
+python scripts/evaluate_editorial_context.py --preflight --synthetic-only
 ```
 
-El preflight carga ambos bancos, verifica las cantidades de las compuertas y revisa el registro y las restricciones de hardware. No construye el proveedor ni contacta Ollama.
+El preflight institucional, después de generar el banco real, utiliza:
+
+```powershell
+$env:PYTHONPATH = "src;scripts"
+python scripts/evaluate_editorial_context.py `
+  --preflight `
+  --real-bank results/editorial_revision_validation/paired_evaluation_bank.json
+```
+
+El preflight doméstico carga sólo el banco sintético; el institucional carga
+también el banco real. Ambos verifican las cantidades de las compuertas, el
+registro y las restricciones de hardware. Ninguno construye el proveedor ni
+contacta Ollama.
 
 ## Ejecución en el servidor institucional
 
