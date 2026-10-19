@@ -6,6 +6,8 @@ Utiliza exclusivamente documentos sintéticos generados en carpetas temporales.
 from __future__ import annotations
 
 import io
+import asyncio
+import threading
 import time
 import zipfile
 from pathlib import Path
@@ -16,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from revisor_web.app import create_app
 from revisor_web.config import WebConfig
+from revisor_web.service import ReviewService, ServerBusyError
 from revisor_web.storage import JobStorage
 from revisor_web.validation import (
     CorruptDocumentError,
@@ -70,8 +73,8 @@ def test_app_and_client(tmp_path: Path):
         trusted_proxy_hosts=("testclient",),
     )
     app = create_app(cfg)
-    client = TestClient(app, headers=TEST_HEADERS)
-    return app, client, jobs_dir
+    with TestClient(app, headers=TEST_HEADERS) as client:
+        yield app, client, jobs_dir
 
 
 def test_index_page(test_app_and_client):
@@ -97,9 +100,10 @@ def test_health_check(test_app_and_client):
     response = client.get("/api/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "ok"
-    assert data["host"] == "127.0.0.1"
-    assert data["max_file_size_mb"] == 2
+    assert data == {"status": "ok", "version": "0.1.0"}
+    ready = client.get("/api/ready")
+    assert ready.status_code == 200
+    assert ready.json()["max_concurrent_jobs"] == 2
 
 
 def test_static_assets(test_app_and_client):
@@ -191,6 +195,38 @@ def test_upload_fake_zip_missing_ooxml(test_app_and_client, tmp_path: Path):
     response = client.post("/api/jobs", files=files)
     assert response.status_code == 400
     assert "estructura OOXML" in response.json()["detail"]
+
+
+@pytest.mark.parametrize("unsafe_name", ("../escape.xml", "/absolute.xml"))
+def test_docx_rejects_unsafe_internal_paths(tmp_path: Path, unsafe_name: str):
+    target = tmp_path / "unsafe.docx"
+    with zipfile.ZipFile(target, "w") as archive:
+        archive.writestr("[Content_Types].xml", "<Types/>")
+        archive.writestr("word/document.xml", "<document/>")
+        archive.writestr(unsafe_name, "x")
+    with pytest.raises(CorruptDocumentError, match="ruta interna"):
+        validate_docx_archive(target)
+
+
+def test_docx_rejects_duplicate_names_and_xml_entities(tmp_path: Path):
+    duplicate = tmp_path / "duplicate.docx"
+    with pytest.warns(UserWarning):
+        with zipfile.ZipFile(duplicate, "w") as archive:
+            archive.writestr("[Content_Types].xml", "<Types/>")
+            archive.writestr("word/document.xml", "<document/>")
+            archive.writestr("word/document.xml", "<document/>")
+    with pytest.raises(CorruptDocumentError, match="duplicados"):
+        validate_docx_archive(duplicate)
+
+    entity = tmp_path / "entity.docx"
+    with zipfile.ZipFile(entity, "w") as archive:
+        archive.writestr("[Content_Types].xml", "<Types/>")
+        archive.writestr(
+            "word/document.xml",
+            '<!DOCTYPE doc [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><doc>&xxe;</doc>',
+        )
+    with pytest.raises(CorruptDocumentError, match="XML no permitidas"):
+        validate_docx_archive(entity)
 
 
 def test_full_job_lifecycle(test_app_and_client, synthetic_valid_docx: Path):
@@ -355,6 +391,64 @@ def test_server_saturation_rejection(tmp_path: Path):
     assert response.status_code == 503
     assert "saturado" in response.json()["detail"]
     assert response.headers.get("retry-after") == "10"
+
+
+def test_fifo_queue_and_per_user_limit(tmp_path: Path):
+    async def scenario():
+        storage = JobStorage(tmp_path / "jobs")
+        config = WebConfig(
+            jobs_dir=storage.base_dir,
+            max_concurrent_jobs=1,
+            max_queue_size=2,
+            max_jobs_per_user=1,
+            trusted_proxy_hosts=("testclient",),
+        )
+        service = ReviewService(config, storage)
+        order = []
+        release = threading.Event()
+
+        def fake_run(job_id, input_path, file_size, cancel_event, queue_wait_seconds):
+            order.append(job_id)
+            release.wait(2)
+            storage.update_job(job_id, status="terminado", summary={})
+
+        service._run_review_sync = fake_run
+        first = storage.create_job("a.docx", 1, owner="uno")
+        second = storage.create_job("b.docx", 1, owner="dos")
+        await service.enqueue_job(first["job_id"], tmp_path / "a", 1, "uno")
+        with pytest.raises(ServerBusyError, match="límite"):
+            await service.enqueue_job("f" * 32, tmp_path / "x", 1, "uno")
+        await service.enqueue_job(second["job_id"], tmp_path / "b", 1, "dos")
+        release.set()
+        await service._queue.join()
+        await service.stop()
+        assert order == [first["job_id"], second["job_id"]]
+
+    asyncio.run(scenario())
+
+
+def test_cross_site_mutations_and_rate_limit_are_rejected(tmp_path: Path, synthetic_valid_docx: Path):
+    cfg = WebConfig(
+        jobs_dir=tmp_path / "jobs",
+        trusted_proxy_hosts=("testclient",),
+        upload_rate_limit_per_minute=1,
+    )
+    with TestClient(create_app(cfg), headers=TEST_HEADERS) as client:
+        cross_site = client.post(
+            "/api/jobs",
+            headers={"Origin": "https://evil.example"},
+            files={"file": ("x.docx", synthetic_valid_docx.read_bytes())},
+        )
+        assert cross_site.status_code == 403
+        accepted = client.post(
+            "/api/jobs", files={"file": ("x.docx", synthetic_valid_docx.read_bytes())}
+        )
+        assert accepted.status_code == 202
+        limited = client.post(
+            "/api/jobs", files={"file": ("y.docx", synthetic_valid_docx.read_bytes())}
+        )
+        assert limited.status_code == 429
+        assert limited.headers["retry-after"] == "60"
 
 
 def test_zero_document_text_in_logs(test_app_and_client, synthetic_valid_docx: Path, caplog):
@@ -615,6 +709,7 @@ def test_pilot_telemetry_is_sanitized_and_computes_metrics(test_app_and_client, 
     assert snapshot["processing_p95_seconds"] == 2.5
     assert snapshot["saturation_rejections"] == 1
     assert snapshot["purged_jobs"] == 3
+    assert snapshot["max_queue_depth"] == 0
     logs = " ".join(record.message for record in caplog.records)
     assert TEST_USER.casefold() not in logs
     assert '"user_hash":"' in logs

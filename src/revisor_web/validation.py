@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 ZIP_MAGIC_BYTES = b"PK\x03\x04"
 MAX_UNCOMPRESSED_RATIO = 100  # Mitigación de Zip Bomb: ratio máximo descomprimido/comprimido
 MAX_UNCOMPRESSED_TOTAL_BYTES = 250 * 1024 * 1024  # 250 MB máximo descomprimido
+MAX_ARCHIVE_ENTRIES = 2048
+MAX_SINGLE_ENTRY_BYTES = 64 * 1024 * 1024
 
 
 class ValidationError(Exception):
@@ -63,6 +65,24 @@ def validate_docx_archive(path: Path | str) -> None:
         with zipfile.ZipFile(file_path, "r") as archive:
             # 1. Mitigación preventiva de Zip Bomb leyendo solo cabeceras centrales (sin descomprimir)
             infolist = archive.infolist()
+            if len(infolist) > MAX_ARCHIVE_ENTRIES:
+                raise CorruptDocumentError("El documento contiene demasiadas partes internas.")
+            normalized_names = []
+            for info in infolist:
+                raw_name = info.filename
+                normalized = raw_name.replace("\\", "/")
+                parts = PurePosixPath(normalized).parts
+                if (not raw_name or "\x00" in raw_name or "\\" in raw_name
+                        or normalized.startswith("/")
+                        or ".." in parts or raw_name.startswith("\\")):
+                    raise CorruptDocumentError("El documento contiene una ruta interna no permitida.")
+                if info.flag_bits & 0x1:
+                    raise CorruptDocumentError("No se admiten partes ZIP cifradas.")
+                if info.file_size > MAX_SINGLE_ENTRY_BYTES:
+                    raise FileTooLargeError("Una parte interna excede el límite de seguridad.")
+                normalized_names.append(normalized.casefold())
+            if len(normalized_names) != len(set(normalized_names)):
+                raise CorruptDocumentError("El documento contiene nombres internos duplicados.")
             total_uncompressed = sum(info.file_size for info in infolist)
             total_compressed = sum(info.compress_size for info in infolist) or 1
 
@@ -82,6 +102,24 @@ def validate_docx_archive(path: Path | str) -> None:
                 raise CorruptDocumentError(
                     "El archivo no tiene la estructura OOXML requerida para un documento Word."
                 )
+
+            # OOXML no necesita DTD ni entidades externas. Se inspeccionan por
+            # streaming todas las partes XML para evitar XXE y expansión de entidades.
+            for info in infolist:
+                if not info.filename.casefold().endswith((".xml", ".rels")):
+                    continue
+                previous = b""
+                with archive.open(info, "r") as stream:
+                    while True:
+                        chunk = stream.read(64 * 1024)
+                        if not chunk:
+                            break
+                        sample = (previous + chunk).upper()
+                        if b"<!DOCTYPE" in sample or b"<!ENTITY" in sample:
+                            raise CorruptDocumentError(
+                                "El documento contiene declaraciones XML no permitidas."
+                            )
+                        previous = sample[-16:]
 
             # 3. Comprobación de integridad CRC (descompresión segura, ya acotada por paso 1)
             bad_file = archive.testzip()

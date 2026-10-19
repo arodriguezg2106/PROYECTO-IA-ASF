@@ -752,6 +752,7 @@
           </div>
 
           <div id="language-tool-summary" class="hidden" style="margin: 1.25rem 0; color: var(--text-muted); font-size: 0.88rem;"></div>
+          <div id="ollama-summary" class="hidden" style="margin: 1.25rem 0; color: var(--text-muted); font-size: 0.88rem;"></div>
 
           <h3 style="font-size: 1.05rem; margin-top: 1.75rem; margin-bottom: 0.5rem; color: #ffffff;">Descarga y Consulta de Entregables</h3>
           <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1rem;">
@@ -1013,7 +1014,8 @@
       statusBadge.textContent = job.status.toUpperCase();
 
       if (job.status === "recibido") {
-        statusMessage.textContent = "Archivo recibido. En espera de ranura de procesamiento...";
+        const position = job.queue_position ? ` PosiciÃ³n ${job.queue_position} de ${job.queue_depth}.` : "";
+        statusMessage.textContent = "Archivo recibido. En espera de ranura de procesamiento..." + position;
       } else if (job.status === "procesando") {
         statusMessage.textContent = "Ejecutando el motor de validaciones determinísticas sobre el documento...";
       } else if (job.status === "terminado") {
@@ -1043,6 +1045,16 @@
       } else {
         languageToolSummary.classList.add("hidden");
         languageToolSummary.textContent = "";
+      }
+
+      const ollama = summary.ollama || {};
+      const ollamaSummary = document.getElementById("ollama-summary");
+      if (ollama.enabled) {
+        ollamaSummary.classList.remove("hidden");
+        ollamaSummary.textContent = `Ollama experimental (${ollama.model || "modelo no identificado"}): ${ollama.status || "desconocido"} Â· ${ollama.duration_seconds ?? 0}s Â· ${ollama.errors_count ?? 0} errores tÃ©cnicos. Sus propuestas no modifican el documento ni sustituyen la revisiÃ³n humana.`;
+      } else {
+        ollamaSummary.classList.add("hidden");
+        ollamaSummary.textContent = "";
       }
 
       // Renderizar tabla de reglas

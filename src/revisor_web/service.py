@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections import Counter, deque
 import logging
+import threading
 import time
 from pathlib import Path
 
@@ -30,9 +32,30 @@ class ReviewService:
         self.config = config
         self.storage = storage
         self.telemetry = telemetry or PilotTelemetry()
-        self._semaphore = asyncio.Semaphore(config.max_concurrent_jobs)
+        self._queue: asyncio.Queue = asyncio.Queue(
+            maxsize=config.max_concurrent_jobs + config.max_queue_size
+        )
+        self._admission_lock = asyncio.Lock()
+        self._worker_tasks: list[asyncio.Task] = []
+        self._pending_ids: deque[str] = deque()
+        self._accepted_by_owner: Counter[str] = Counter()
         self._active_jobs: int = 0
         self._queued_jobs: int = 0
+
+    async def start(self) -> None:
+        if self._worker_tasks:
+            return
+        self._worker_tasks = [
+            asyncio.create_task(self._worker_loop(index), name=f"revisor-worker-{index}")
+            for index in range(self.config.max_concurrent_jobs)
+        ]
+
+    async def stop(self) -> None:
+        for task in self._worker_tasks:
+            task.cancel()
+        if self._worker_tasks:
+            await asyncio.gather(*self._worker_tasks, return_exceptions=True)
+        self._worker_tasks.clear()
 
     @property
     def is_saturated(self) -> bool:
@@ -40,42 +63,122 @@ class ReviewService:
         total = self._active_jobs + self._queued_jobs
         return total >= (self.config.max_concurrent_jobs + self.config.max_queue_size)
 
-    def enqueue_job(self, job_id: str, input_path: Path, file_size: int) -> None:
-        """Registra el trabajo y lanza su ejecución asíncrona controlada."""
-        if self.is_saturated:
-            raise ServerBusyError(
-                "El servidor se encuentra ocupado procesando solicitudes. Por favor intente más tarde."
-            )
+    async def enqueue_job(
+        self, job_id: str, input_path: Path, file_size: int, owner: str
+    ) -> dict:
+        """Admite de forma atómica un trabajo en la cola FIFO acotada."""
+        if not self._worker_tasks:
+            await self.start()
+        async with self._admission_lock:
+            if self.is_saturated or self._accepted_by_owner[owner] >= self.config.max_jobs_per_user:
+                raise ServerBusyError(
+                    "El servidor se encuentra ocupado o el usuario alcanzó su límite de trabajos."
+                )
+            self._queued_jobs += 1
+            self._accepted_by_owner[owner] += 1
+            self._pending_ids.append(job_id)
+            self._queue.put_nowait((job_id, input_path, file_size, owner, time.monotonic()))
+            depth = self._queued_jobs
+        self.telemetry.record(
+            "job_queued", job_id=job_id, identity=owner, queue_depth=depth
+        )
+        return {"queue_position": self.queue_position(job_id), "queue_depth": depth}
 
-        self._queued_jobs += 1
-        asyncio.create_task(self._process_job_task(job_id, input_path, file_size))
-
-    async def _process_job_task(self, job_id: str, input_path: Path, file_size: int) -> None:
-        """Adquiere la ranura de concurrencia y ejecuta el motor en un hilo secundario."""
+    def queue_position(self, job_id: str) -> int | None:
         try:
-            async with self._semaphore:
+            return list(self._pending_ids).index(job_id) + 1
+        except ValueError:
+            return None
+
+    @property
+    def queue_depth(self) -> int:
+        return self._queued_jobs
+
+    async def _worker_loop(self, worker_index: int) -> None:
+        while True:
+            job_id, input_path, file_size, owner, queued_at = await self._queue.get()
+            cancel_event = threading.Event()
+            async with self._admission_lock:
+                try:
+                    self._pending_ids.remove(job_id)
+                except ValueError:
+                    pass
                 self._queued_jobs = max(0, self._queued_jobs - 1)
                 self._active_jobs += 1
-                try:
-                    await asyncio.to_thread(self._run_review_sync, job_id, input_path, file_size)
-                finally:
+            wait_seconds = time.monotonic() - queued_at
+            self.telemetry.record(
+                "job_started", job_id=job_id, identity=owner, duration_seconds=wait_seconds
+            )
+            future = asyncio.create_task(
+                asyncio.to_thread(
+                    self._run_review_sync, job_id, input_path, file_size, cancel_event, wait_seconds
+                )
+            )
+            timed_out = False
+            try:
+                await asyncio.wait_for(
+                    asyncio.shield(future), timeout=self.config.job_timeout_seconds
+                )
+            except TimeoutError:
+                timed_out = True
+                cancel_event.set()
+                logger.warning("Trabajo %s excedió el timeout configurado", job_id)
+                await future
+            except asyncio.CancelledError:
+                cancel_event.set()
+                raise
+            except Exception as exc:
+                logger.error(
+                    "Error no controlado en worker %d para %s: %s",
+                    worker_index, job_id, type(exc).__name__,
+                )
+            finally:
+                if timed_out:
+                    meta = self.storage.get_job(job_id)
+                    if meta and meta.get("status") not in {"fallido", "terminado"}:
+                        self.storage.update_job(
+                            job_id,
+                            status="fallido",
+                            error="El procesamiento excedió el tiempo máximo permitido.",
+                        )
+                async with self._admission_lock:
                     self._active_jobs = max(0, self._active_jobs - 1)
-        except Exception as exc:
-            logger.error("Error no controlado en la tarea del trabajo %s: %s", job_id, type(exc).__name__)
+                    self._accepted_by_owner[owner] -= 1
+                    if self._accepted_by_owner[owner] <= 0:
+                        del self._accepted_by_owner[owner]
+                self._queue.task_done()
 
-    def _run_review_sync(self, job_id: str, input_path: Path, file_size: int) -> None:
-        """Ejecuta el flujo síncrono del motor determinístico y exporta los artefactos."""
-        logger.info("Iniciando revisión determinística para trabajo %s (tamaño: %d bytes)", job_id, file_size)
-        self.storage.update_job(job_id, status="procesando")
-
-        start_time = time.perf_counter()
+    def _run_review_sync(
+        self,
+        job_id: str,
+        input_path: Path,
+        file_size: int,
+        cancel_event: threading.Event | None = None,
+        queue_wait_seconds: float = 0.0,
+    ) -> None:
+        """Ejecuta el flujo síncrono y respeta la cancelación entre etapas seguras."""
         try:
+            logger.info("Iniciando revisión para trabajo %s (tamaño: %d bytes)", job_id, file_size)
+            self.storage.update_job(job_id, status="procesando")
+            start_time = time.perf_counter()
             # Reutilización de la API pública existente de revisor_crf. Ollama
             # permanece desactivado; LanguageTool sólo opera con perfil aprobado.
             editorial_override = None
             if self.config.editorial_enabled:
                 from revisor_crf.editorial import EditorialConfig
+                ollama_profile = None
+                if self.config.ollama_enabled:
+                    from revisor_crf.ollama_profile import load_ollama_profile
+                    ollama_profile = load_ollama_profile(self.config.ollama_profile)
                 editorial_override = EditorialConfig(
+                    ollama_enabled=self.config.ollama_enabled,
+                    experimental_model=self.config.ollama_enabled,
+                    model=(ollama_profile.model_id if ollama_profile else "qwen3.5:4b"),
+                    base_url=self.config.ollama_url,
+                    timeout_seconds=self.config.ollama_timeout_seconds,
+                    expected_model_digest=(
+                        ollama_profile.model_digest if ollama_profile else None
+                    ),
                     language_tool_enabled=self.config.language_tool_enabled,
                     language_tool_experimental=False,
                     language_tool_profile_path=(
@@ -90,9 +193,13 @@ class ReviewService:
                 catalog_path=None,
                 semantic=False,
                 editorial=self.config.editorial_enabled,
+                editorial_ollama=self.config.ollama_enabled,
                 editorial_language_tool=self.config.language_tool_enabled,
                 editorial_config_override=editorial_override,
             )
+
+            if cancel_event and cancel_event.is_set():
+                raise TimeoutError("job_timeout")
 
             paths = self.storage.get_output_paths(job_id)
 
@@ -101,6 +208,8 @@ class ReviewService:
             result["commented_copy"] = export_commented_docx(
                 input_path, result, paths["docx"]
             )
+            if cancel_event and cancel_event.is_set():
+                raise TimeoutError("job_timeout")
             # 2. Exportar JSON y HTML después para que incluyan commented_copy
             export_json(result, paths["json"])
             export_html(result, paths["html"])
@@ -124,6 +233,7 @@ class ReviewService:
                 "excluded": result.get("summary", {}).get("excluded", 0),
                 "sha256": result.get("source", {}).get("sha256", ""),
                 "duration_seconds": round(duration, 3),
+                "queue_wait_seconds": round(queue_wait_seconds, 3),
                 "editorial_findings_count": len(editorial_review.get("findings", [])),
                 "language_tool": {
                     "enabled": bool(language_tool.get("enabled")),
@@ -133,6 +243,13 @@ class ReviewService:
                     "duration_seconds": language_tool.get("duration_seconds", 0.0),
                     "calls": language_tool.get("calls", 0),
                     "errors_count": len(language_tool.get("errors") or []),
+                },
+                "ollama": {
+                    "enabled": bool((editorial_review.get("ollama") or {}).get("enabled")),
+                    "status": (editorial_review.get("ollama") or {}).get("status", "disabled"),
+                    "model": ((editorial_review.get("ollama") or {}).get("model") or {}).get("model_id"),
+                    "duration_seconds": (editorial_review.get("ollama") or {}).get("duration_seconds", 0.0),
+                    "errors_count": len((editorial_review.get("ollama") or {}).get("errors") or []),
                 },
             }
 
@@ -152,7 +269,7 @@ class ReviewService:
             )
 
         except Exception as exc:
-            duration = time.perf_counter() - start_time
+            duration = time.perf_counter() - locals().get("start_time", time.perf_counter())
             # Se registra únicamente el tipo de excepción; nunca el texto del documento
             logger.error("Fallo al procesar trabajo %s tras %.2f s: %s", job_id, duration, type(exc).__name__)
             clean_error = f"Error durante la revisión determinística: {type(exc).__name__}"

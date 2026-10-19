@@ -133,6 +133,22 @@ class JobStorage:
         input_path.write_bytes(content)
         return input_path
 
+    def create_staging_path(self) -> Path:
+        """Reserva una ruta confinada para escribir una carga por streaming."""
+        path = (self.base_dir / f".upload-{uuid.uuid4().hex}.tmp").resolve()
+        if not path.is_relative_to(self.base_dir):
+            raise ValueError("Ruta temporal fuera del almacenamiento permitido.")
+        return path
+
+    def adopt_staged_input(self, job_id: str, staged_path: Path | str) -> Path:
+        """Mueve atómicamente una carga ya validada al directorio del trabajo."""
+        source = Path(staged_path).resolve()
+        if not source.is_relative_to(self.base_dir) or source.parent != self.base_dir:
+            raise ValueError("La carga temporal no pertenece al almacenamiento permitido.")
+        target = self._job_dir(job_id) / "input.docx"
+        source.replace(target)
+        return target
+
     def get_input_path(self, job_id: str) -> Path:
         return self._job_dir(job_id) / "input.docx"
 

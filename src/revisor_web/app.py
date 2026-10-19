@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+from collections import defaultdict, deque
 import ipaddress
 import json
 import logging
 import re
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
@@ -75,6 +78,25 @@ def _is_loopback_host(host: str) -> bool:
         return host.casefold() == "localhost"
 
 
+class _SlidingWindowLimiter:
+    """Límite local por identidad; el proxy conserva el límite perimetral."""
+
+    def __init__(self) -> None:
+        self._events: dict[tuple[str, str], deque[float]] = defaultdict(deque)
+
+    def allow_all(self, quotas: tuple[tuple[str, int], ...], action: str) -> bool:
+        now = time.monotonic()
+        windows = [(self._events[(identity, action)], limit) for identity, limit in quotas]
+        for values, _limit in windows:
+            while values and now - values[0] >= 60:
+                values.popleft()
+        if any(len(values) >= limit for values, limit in windows):
+            return False
+        for values, _limit in windows:
+            values.append(now)
+        return True
+
+
 def create_app(cfg: WebConfig | None = None) -> FastAPI:
     """Fábrica de la aplicación web interna."""
     app_config = cfg or default_config
@@ -86,6 +108,7 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
     storage = JobStorage(app_config.jobs_dir)
     telemetry = PilotTelemetry()
     service = ReviewService(app_config, storage, telemetry)
+    rate_limiter = _SlidingWindowLimiter()
 
     cleanup_task: asyncio.Task | None = None
 
@@ -114,6 +137,7 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
             logger.info("Limpieza inicial: eliminados %d trabajos previos", len(deleted))
 
         nonlocal cleanup_task
+        await service.start()
         cleanup_task = asyncio.create_task(_periodic_cleanup_loop())
         logger.info(
             "Servidor web interno iniciado en http://%s:%d (TTL trabajos: %ds, concurrencia máx: %d)",
@@ -131,6 +155,7 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
                 await cleanup_task
             except asyncio.CancelledError:
                 pass
+        await service.stop()
         logger.info("Servidor web interno detenido.")
 
     app = FastAPI(
@@ -195,9 +220,42 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
-            "object-src 'none'; base-uri 'none'; frame-ancestors 'self'",
+            "connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; "
+            "form-action 'self'; frame-ancestors 'self'",
         )
         return response
+
+    def _validate_same_origin(request: Request) -> None:
+        """Rechaza mutaciones iniciadas por otro origen sin exigir cookies CSRF."""
+        origin = request.headers.get("origin")
+        referer = request.headers.get("referer")
+        if not origin and not referer:
+            return
+        candidate = origin or referer
+        parsed = urlsplit(candidate)
+        candidate_origin = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+        forwarded_proto = request.headers.get("x-forwarded-proto")
+        forwarded_host = request.headers.get("x-forwarded-host")
+        request_origin = (
+            f"{forwarded_proto}://{forwarded_host}" if forwarded_proto and forwarded_host
+            else str(request.base_url).rstrip("/")
+        )
+        allowed = {request_origin, *app_config.allowed_origins}
+        if candidate_origin not in allowed:
+            raise HTTPException(status_code=403, detail="Origen de solicitud no permitido.")
+
+    def _check_rate(request: Request, action: str, limit: int) -> None:
+        identity = request.state.identity
+        peer = request.client.host if request.client else "unknown"
+        proxy_limit = limit * max(2, app_config.max_jobs_per_user)
+        if not rate_limiter.allow_all(
+            ((f"user:{identity}", limit), (f"peer:{peer}", proxy_limit)), action
+        ):
+            raise HTTPException(
+                status_code=429,
+                detail="Se excedió el límite temporal de solicitudes.",
+                headers={"Retry-After": "60"},
+            )
 
     def _owned_job(job_id: str, identity: str) -> dict:
         meta = storage.get_job(job_id)
@@ -243,19 +301,26 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
     @app.get("/api/health")
     async def health_check():
         """Estado técnico del servicio."""
+        return {"status": "ok", "version": "0.1.0"}
+
+    @app.get("/api/ready")
+    async def readiness(request: Request):
+        """Estado operativo protegido, sin rutas, nombres ni texto documental."""
         return {
-            "status": "ok",
-            "version": "0.1.0",
-            "host": app_config.host,
-            "port": app_config.port,
+            "status": "ready",
+            "queue_depth": service.queue_depth,
+            "active_jobs": service._active_jobs,
             "max_concurrent_jobs": app_config.max_concurrent_jobs,
-            "max_file_size_mb": app_config.max_file_size_mb,
-            "job_ttl_seconds": app_config.job_ttl_seconds,
+            "max_queue_size": app_config.max_queue_size,
+            "ollama_enabled": app_config.ollama_enabled,
+            "language_tool_enabled": app_config.language_tool_enabled,
         }
 
     @app.post("/api/jobs", status_code=status.HTTP_202_ACCEPTED)
     async def create_job(request: Request, file: UploadFile = File(...)):
         """Carga un documento DOCX, valida su integridad y encola la revisión determinística."""
+        _validate_same_origin(request)
+        _check_rate(request, "upload", app_config.upload_rate_limit_per_minute)
         if service.is_saturated:
             telemetry.record("job_saturated", identity=request.state.identity, status="rechazado")
             raise HTTPException(
@@ -269,55 +334,56 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
         except InvalidExtensionError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
-        content_chunks = []
         bytes_read = 0
         max_bytes = app_config.max_file_size_bytes
-
-        while True:
-            chunk = await file.read(64 * 1024)
-            if not chunk:
-                break
-            bytes_read += len(chunk)
-            if bytes_read > max_bytes:
-                raise HTTPException(
-                    status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                    detail=f"El archivo excede el límite máximo de {app_config.max_file_size_mb} MB.",
-                )
-            content_chunks.append(chunk)
-
-        content = b"".join(content_chunks)
-
-        if not content:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El archivo proporcionado está vacío.",
+        staging_path = storage.create_staging_path()
+        meta = None
+        try:
+            with staging_path.open("xb") as destination:
+                while True:
+                    chunk = await file.read(64 * 1024)
+                    if not chunk:
+                        break
+                    bytes_read += len(chunk)
+                    if bytes_read > max_bytes:
+                        raise HTTPException(
+                            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                            detail=(f"El archivo excede el límite máximo de "
+                                    f"{app_config.max_file_size_mb} MB."),
+                        )
+                    destination.write(chunk)
+            if not bytes_read:
+                raise HTTPException(status_code=400, detail="El archivo proporcionado está vacío.")
+            with staging_path.open("rb") as source:
+                validate_header_signature(source.read(16))
+            validate_docx_archive(staging_path)
+            meta = storage.create_job(safe_filename, bytes_read, owner=request.state.identity)
+            job_id = meta["job_id"]
+            input_path = storage.adopt_staged_input(job_id, staging_path)
+            queue_info = await service.enqueue_job(
+                job_id, input_path, bytes_read, request.state.identity
             )
-
-        try:
-            validate_header_signature(content[:16])
-        except InvalidSignatureError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
-
-        meta = storage.create_job(safe_filename, bytes_read, owner=request.state.identity)
-        job_id = meta["job_id"]
-        input_path = storage.save_input_file(job_id, content)
-
-        try:
-            validate_docx_archive(input_path)
-            service.enqueue_job(job_id, input_path, bytes_read)
         except ValidationError as exc:
-            storage.delete_job(job_id)
+            if meta:
+                storage.delete_job(meta["job_id"])
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
         except ServerBusyError as exc:
-            storage.delete_job(job_id)
+            if meta:
+                storage.delete_job(meta["job_id"])
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=str(exc),
                 headers={"Retry-After": "10"},
             )
         except Exception:
-            storage.delete_job(job_id)
+            if meta:
+                storage.delete_job(meta["job_id"])
             raise
+        finally:
+            try:
+                staging_path.unlink(missing_ok=True)
+            except OSError:
+                logger.warning("No se pudo limpiar una carga temporal rechazada.")
 
         logger.info("Trabajo recibido y encolado: %s (tamaño: %d bytes)", job_id, bytes_read)
         telemetry.record("job_uploaded", job_id=job_id, identity=request.state.identity, status="recibido")
@@ -327,12 +393,16 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
             "original_filename": safe_filename,
             "file_size": bytes_read,
             "created_at": meta["created_at"],
+            **queue_info,
         }
 
     @app.get("/api/jobs/{job_id}")
     async def get_job_status(job_id: str, request: Request):
         """Consulta el estado actual, métricas o error de un trabajo."""
         meta = _owned_job(job_id, request.state.identity)
+        meta = dict(meta)
+        meta["queue_position"] = service.queue_position(job_id)
+        meta["queue_depth"] = service.queue_depth
         telemetry.record(
             "job_status_viewed", job_id=job_id, identity=request.state.identity, status=meta.get("status")
         )
@@ -416,6 +486,8 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
         job_id: str, finding_id: str, payload: FindingDecision, request: Request
     ):
         """Registra una decision del propietario sin alterar la evidencia original."""
+        _validate_same_origin(request)
+        _check_rate(request, "decision", app_config.decision_rate_limit_per_minute)
         _owned_job(job_id, request.state.identity)
         if payload.status not in ALLOWED_DECISION_STATUSES:
             raise HTTPException(status_code=422, detail="Estado de decision no permitido.")
