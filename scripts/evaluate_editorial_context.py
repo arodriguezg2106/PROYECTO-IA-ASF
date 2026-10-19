@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
+import subprocess
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,6 +22,26 @@ from revisor_crf.editorial_models import load_model_registry, model_descriptor
 
 DEFAULT_MODELS = "qwen3.5:9b,gemma3:12b"
 DEFAULT_REAL_BANK = "results/editorial_revision_validation/paired_evaluation_bank.json"
+
+
+def _source_commit() -> str:
+    configured = os.getenv("REVISOR_SOURCE_COMMIT", "").strip()
+    if configured:
+        return configured
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"], text=True, capture_output=True, check=True
+        )
+        return result.stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
+
+
+def _write_json(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
 
 
 def _model_preflight(model_id, registry, accelerator_memory_gb, available_models=None):
@@ -72,6 +95,7 @@ def main(argv=None, *, provider_factory=None):
               "nunca aprueba un modelo para uso institucional."),
     )
     parser.add_argument("--output", default="results/editorial_context/staged-model-evaluation.json")
+    parser.add_argument("--checkpoint-dir", help="Directorio opcional para guardar cada compuerta")
     args = parser.parse_args(argv)
     try:
         registry = load_model_registry()
@@ -99,6 +123,8 @@ def main(argv=None, *, provider_factory=None):
         payload = {
             "schema_version": "editorial-context-model-gates-1.0",
             "generated_at": datetime.now(timezone.utc).isoformat(),
+            "source_commit": _source_commit(),
+            "synthetic_dataset_sha256": hashlib.sha256(Path(args.dataset).read_bytes()).hexdigest(),
             "synthetic_dataset": dataset["schema_version"],
             "evaluation_scope": (
                 "synthetic_screening_only" if args.synthetic_only else "full_institutional"
@@ -128,14 +154,33 @@ def main(argv=None, *, provider_factory=None):
                     continue
                 config = replace(base, ollama_enabled=True, experimental_model=True,
                                  model=check["model"], temperature=0.0)
+                provider = factory(config)
+                checkpoint_dir = Path(args.checkpoint_dir) if args.checkpoint_dir else None
+
+                def checkpoint(stage_name, stages, model=check["model"]):
+                    if checkpoint_dir is None:
+                        return
+                    safe_model = model.replace(":", "-").replace("/", "-")
+                    _write_json(checkpoint_dir / f"{safe_model}-{stage_name}.json", {
+                        "schema_version": "editorial-context-checkpoint-1.0",
+                        "source_commit": payload["source_commit"],
+                        "evaluation_scope": payload["evaluation_scope"],
+                        "model": model,
+                        "completed_stages": stages,
+                    })
+
                 result = evaluate_model_sequence(
-                    factory(config), dataset["cases"],
+                    provider, dataset["cases"],
                     None if real_bank is None else real_bank["cases"], rule,
                     registry["approval_criteria"], repetitions=args.repetitions,
                     real_categories=real_categories,
                     include_real=not args.synthetic_only,
+                    stage_callback=checkpoint,
                 )
-                payload["results"].append({"model": check["model"], **result})
+                metadata = provider.metadata() if hasattr(provider, "metadata") else {}
+                payload["results"].append({
+                    "model": check["model"], "provider_metadata": metadata, **result
+                })
             passed = [item for item in payload["results"] if item.get("status") == "passed"]
             if passed:
                 if args.synthetic_only:
@@ -145,8 +190,7 @@ def main(argv=None, *, provider_factory=None):
                     payload["selected_model"] = passed[0]["model"]
                     payload["status"] = "approved"
         target = Path(args.output)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        _write_json(target, payload)
         print(f"Evaluación por compuertas guardada en {target}; estado: {payload['status']}")
         if args.preflight:
             return 0 if all(item["eligible_to_run"] for item in preflight) else 2

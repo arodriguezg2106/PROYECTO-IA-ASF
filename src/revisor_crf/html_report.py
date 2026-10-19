@@ -81,6 +81,7 @@ def _editorial_html(report: dict) -> str:
     substantive_rows = []
     format_rows = []
     language_tool_rows = []
+    ollama_rows = []
     decision_options = "".join(
         f'<option value="{value}">{label}</option>' for value, label in (
             ("pending", "Pendiente"), ("confirmed", "Confirmada"),
@@ -117,6 +118,8 @@ def _editorial_html(report: dict) -> str:
                 occurrences, escape(foundation)))
         if method == "language_tool":
             language_tool_rows.append(row_html)
+        elif method == "ollama":
+            ollama_rows.append(row_html)
         elif items[0].get("review_focus") == "format":
             format_rows.append(row_html)
         else:
@@ -124,6 +127,7 @@ def _editorial_html(report: dict) -> str:
     substantive_html = "".join(substantive_rows) or '<tr><td colspan="6">Sin observaciones sustantivas adicionales.</td></tr>'
     format_html = "".join(format_rows) or '<tr><td colspan="6">Sin observaciones de formato.</td></tr>'
     language_tool_html = "".join(language_tool_rows) or '<tr><td colspan="6">Sin sugerencias lingüísticas.</td></tr>'
+    ollama_html = "".join(ollama_rows) or '<tr><td colspan="6">Sin propuestas experimentales.</td></tr>'
     def options(values):
         return "".join(f'<option value="{escape(str(value), quote=True)}">{escape(str(value))}</option>'
                        for value in sorted(values))
@@ -173,6 +177,11 @@ def _editorial_html(report: dict) -> str:
             '<p class="meta">Estas sugerencias provienen exclusivamente de reglas incluidas en el perfil aprobado. No son errores confirmados y no generan comentarios de Word.</p>'
             '<table class="calc-table"><thead><tr><th>Regla</th><th>Severidad</th><th>Método</th><th>Sugerencia</th><th>Ubicaciones</th><th>Fundamento</th></tr></thead>'
             f'<tbody>{language_tool_html}</tbody></table></details>'
+            '<details class="card"><summary><strong>Propuestas experimentales de Ollama</strong> — '
+            f'{len(ollama_rows)} grupos posibles; siempre requieren decisión humana</summary>'
+            '<p class="meta">El modelo es opcional y puede quedar parcial sin interrumpir el motor determinístico. Sus propuestas no son errores confirmados, no autocorrigen y no generan comentarios de Word.</p>'
+            '<table class="calc-table"><thead><tr><th>Regla</th><th>Severidad</th><th>Método</th><th>Propuesta</th><th>Ubicaciones</th><th>Fundamento</th></tr></thead>'
+            f'<tbody>{ollama_html}</tbody></table></details>'
             f'<details class="card"><summary><strong>Observaciones de formato agrupadas</strong> — {summary.get("format_occurrences", 0)} ocurrencias en {summary.get("groups_by_focus", {}).get("format", 0)} tipos</summary><table class="calc-table"><thead><tr><th>Regla</th><th>Severidad</th><th>Método</th><th>Hallazgo</th><th>Ubicaciones</th><th>Fundamento</th></tr></thead><tbody>{format_html}</tbody></table></details>'
             f'<h3>Cobertura por regla</h3><table class="calc-table"><thead><tr><th>Regla</th><th>Estado</th><th>Hallazgos</th><th>Fundamento</th></tr></thead><tbody>{coverage_rows}</tbody></table>'
             f'<h3>Glosario de siglas</h3><table class="calc-table"><thead><tr><th>Sigla</th><th>Denominación</th><th>Primera ubicación</th><th>Estado</th></tr></thead><tbody>{glossary_rows}</tbody></table>'

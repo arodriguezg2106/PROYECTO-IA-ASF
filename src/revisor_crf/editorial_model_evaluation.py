@@ -138,7 +138,8 @@ def aggregate_runs(runs, case_count):
 
 
 def evaluate_model_sequence(provider, synthetic_cases, real_cases, rule, criteria, *, repetitions=3,
-                            real_categories=DEFAULT_REAL_CATEGORIES, include_real=True):
+                            real_categories=DEFAULT_REAL_CATEGORIES, include_real=True,
+                            stage_callback=None):
     """Ejecuta las compuertas solicitadas y se detiene en el primer fallo."""
     minimum = criteria["minimum_repetitions"]
     if repetitions < minimum:
@@ -161,6 +162,8 @@ def evaluate_model_sequence(provider, synthetic_cases, real_cases, rule, criteri
         metrics = aggregate_runs(runs, len(cases))
         passed = evaluation_passes(metrics, criteria, repetitions=repetitions)
         stages.append({"stage": name, "status": "passed" if passed else "failed", "metrics": metrics})
+        if stage_callback is not None:
+            stage_callback(name, list(stages))
         stopped = not passed
     result = {
         "status": "passed" if not stopped else "failed",

@@ -17,6 +17,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 CATALOG_PATH = Path(__file__).with_name("editorial_catalog.json")
 ABBREVIATIONS_PATH = Path(__file__).with_name("editorial_abbreviations.json")
+EDITORIAL_PROMPT_VERSION = "editorial-context-1.0"
 WORDING = {
     "aperturar": "abrir", "accesar": "acceder", "apegarse": "ajustarse o cumplir",
     "generar": "causar, originar o provocar", "estipular": "establecer",
@@ -42,6 +43,7 @@ class EditorialConfig:
     base_url: str = "http://localhost:11434/api"
     temperature: float = 0.0
     timeout_seconds: float = 120.0
+    expected_model_digest: str | None = None
     max_fragment_chars: int = 4000
     confidence_threshold: float = 0.8
     categories: tuple[str, ...] = ()
@@ -109,13 +111,21 @@ class OllamaEditorialProvider:
         from .editorial_models import authorize_model
         self.descriptor = authorize_model(config.model, experimental=config.experimental_model)
         semantic = SemanticConfig(base_url=config.base_url, model=config.model,
-            timeout_seconds=config.timeout_seconds, confidence_threshold=max(.5, config.confidence_threshold))
+            timeout_seconds=config.timeout_seconds, confidence_threshold=max(.5, config.confidence_threshold),
+            expected_model_digest=config.expected_model_digest)
         semantic.validate(); self.client = OllamaProvider(semantic); self.config = config
+        if config.expected_model_digest:
+            observed = self.client.metadata().get("digest")
+            if observed != config.expected_model_digest:
+                raise RuntimeError("ollama_model_digest_mismatch")
     def review(self, request, schema):
         payload = {"model": self.config.model, "messages":[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":json.dumps(request, ensure_ascii=False)}],
             "stream":False,"think":False,"format":schema,"options":{"temperature":self.config.temperature,"seed":20260923}}
         response = self.client._request("chat", payload)
         return (response.get("message") or {}).get("content")
+
+    def metadata(self):
+        return self.client.metadata()
 
 SYSTEM_PROMPT = ("Actúas como revisor editorial de documentos de fiscalización de la Auditoría Superior de la Federación. "
  "Revisa exclusivamente el fragmento conforme a las reglas incluidas. No inventes reglas ni hechos; no cambies el sentido técnico, jurídico o fiscalizador, cifras, importes, porcentajes, fechas, folios, nombres, siglas ni referencias normativas. "

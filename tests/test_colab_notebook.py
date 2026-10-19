@@ -13,8 +13,15 @@ def test_colab_notebook_is_synthetic_only_and_contains_no_real_data_commands():
     )
     assert "--synthetic-only" in code
     assert "qwen3.5:9b" in code
+    assert "gemma3:12b" in code
+    assert 'userdata.get("GITHUB_TOKEN")' in code
+    assert "--checkpoint-dir" in code
+    assert "selected_model" in code
     assert "drive.mount" not in code
     assert ".docx" not in code
     assert ".xlsx" not in code
     assert "paired_evaluation_bank" not in code
-    assert "selected_model" in code
+    assert all(not cell.get("outputs") for cell in notebook["cells"] if cell["cell_type"] == "code")
+    assert "github_pat_" not in Path("notebooks/evaluacion_sintetica_colab.ipynb").read_text(
+        encoding="utf-8"
+    )

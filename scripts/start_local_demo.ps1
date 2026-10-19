@@ -3,7 +3,10 @@ param(
     [int]$Port = 8000,
     [switch]$Editorial,
     [switch]$LanguageTool,
-    [string]$LanguageToolProfile
+    [string]$LanguageToolProfile,
+    [switch]$Ollama,
+    [string]$OllamaProfile,
+    [string]$OllamaUrl = "http://127.0.0.1:11434"
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,6 +23,9 @@ $previousEditorial = $env:REVISOR_WEB_EDITORIAL_ENABLED
 $previousLanguageTool = $env:REVISOR_WEB_LANGUAGETOOL_ENABLED
 $previousLanguageToolProfile = $env:REVISOR_WEB_LANGUAGETOOL_PROFILE
 $previousConcurrency = $env:REVISOR_WEB_MAX_CONCURRENT_JOBS
+$previousOllama = $env:REVISOR_WEB_OLLAMA_ENABLED
+$previousOllamaProfile = $env:REVISOR_WEB_OLLAMA_PROFILE
+$previousOllamaUrl = $env:REVISOR_WEB_OLLAMA_URL
 $locationPushed = $false
 
 try {
@@ -29,12 +35,28 @@ try {
     if ($LanguageTool -and -not $LanguageToolProfile) {
         throw "-LanguageTool requiere -LanguageToolProfile con un perfil aprobado."
     }
+    if ($Ollama -and -not $Editorial) {
+        throw "-Ollama requiere -Editorial."
+    }
+    if ($Ollama -and -not $OllamaProfile) {
+        throw "-Ollama requiere -OllamaProfile generado desde una evaluaciÃ³n aprobatoria."
+    }
+    if ($LanguageTool -and $Ollama) {
+        throw "LanguageTool y Ollama no pueden estar activos simultÃ¡neamente."
+    }
     $env:PYTHONPATH = Join-Path $projectRoot "src"
     $env:REVISOR_WEB_EDITORIAL_ENABLED = if ($Editorial) { "1" } else { "0" }
     $env:REVISOR_WEB_LANGUAGETOOL_ENABLED = if ($LanguageTool) { "1" } else { "0" }
+    $env:REVISOR_WEB_OLLAMA_ENABLED = if ($Ollama) { "1" } else { "0" }
     if ($LanguageTool) {
         $resolvedProfile = (Resolve-Path -LiteralPath $LanguageToolProfile).Path
         $env:REVISOR_WEB_LANGUAGETOOL_PROFILE = $resolvedProfile
+        $env:REVISOR_WEB_MAX_CONCURRENT_JOBS = "1"
+    }
+    if ($Ollama) {
+        $resolvedOllamaProfile = (Resolve-Path -LiteralPath $OllamaProfile).Path
+        $env:REVISOR_WEB_OLLAMA_PROFILE = $resolvedOllamaProfile
+        $env:REVISOR_WEB_OLLAMA_URL = $OllamaUrl
         $env:REVISOR_WEB_MAX_CONCURRENT_JOBS = "1"
     }
     Push-Location $projectRoot
@@ -60,4 +82,7 @@ try {
     $env:REVISOR_WEB_LANGUAGETOOL_ENABLED = $previousLanguageTool
     $env:REVISOR_WEB_LANGUAGETOOL_PROFILE = $previousLanguageToolProfile
     $env:REVISOR_WEB_MAX_CONCURRENT_JOBS = $previousConcurrency
+    $env:REVISOR_WEB_OLLAMA_ENABLED = $previousOllama
+    $env:REVISOR_WEB_OLLAMA_PROFILE = $previousOllamaProfile
+    $env:REVISOR_WEB_OLLAMA_URL = $previousOllamaUrl
 }

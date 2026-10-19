@@ -99,6 +99,18 @@ def test_synthetic_screen_never_runs_or_reports_real_gate():
     assert provider.calls == (2 + 10 + 30) * 3
 
 
+def test_stage_callback_receives_incremental_checkpoints():
+    synthetic, _, rule, criteria = _inputs()
+    provider = OracleProvider(synthetic)
+    checkpoints = []
+    result = evaluate_model_sequence(
+        provider, synthetic, None, rule, criteria, repetitions=3, include_real=False,
+        stage_callback=lambda name, stages: checkpoints.append((name, len(stages))),
+    )
+    assert result["status"] == "passed"
+    assert checkpoints == [("smoke", 1), ("hard", 2), ("final", 3)]
+
+
 def test_real_bank_accepts_expanded_and_compact_pairs(tmp_path):
     expanded = tmp_path / "expanded.json"
     expanded.write_text(json.dumps({
