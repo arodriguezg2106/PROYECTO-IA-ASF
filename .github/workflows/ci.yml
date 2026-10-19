@@ -1,0 +1,71 @@
+name: CI y seguridad
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Pruebas Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r requirements-web.txt -r requirements-reporting.txt
+      - run: python -m pip install -e .
+      - run: python -m pytest -q
+
+  static-analysis:
+    name: Análisis estático
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install bandit[toml]
+      - run: bandit -q -r src scripts -x scripts/start_languagetool.ps1 -lll
+
+  dependencies-and-sbom:
+    name: Dependencias y SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install pip-audit
+      - run: pip-audit -r requirements-web.txt --format cyclonedx-json --output sbom-web.cdx.json
+      - run: pip-audit -r requirements-reporting.txt --format cyclonedx-json --output sbom-reporting.cdx.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sbom-cyclonedx
+          path: "sbom-*.cdx.json"
+          if-no-files-found: error
+
+  secrets:
+    name: Secretos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

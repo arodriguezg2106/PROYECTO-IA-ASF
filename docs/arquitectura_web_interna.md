@@ -17,7 +17,7 @@ El usuario interactúa exclusivamente a través del navegador web para:
 - **Procesamiento estrictamente del lado del servidor**: Los documentos se procesan en el backend local.
 - **Sin servicios externos ni nube**: No se emplean servicios externos, CDNs ni librerías remotas.
 - **Aislamiento de la lógica de negocio**: Se reutiliza la API pública de `revisor_crf` (`read_docx`, `review_document`, `export_html`, `export_commented_docx`, `export_json`) sin alterar las reglas determinísticas, catálogos editoriales ni scripts existentes.
-- **Exclusión explícita de Ollama y LanguageTool**: En este MVP no se activan dependencias de modelos de lenguaje ni de servidores externos. Ollama queda documentado únicamente como una futura integración opcional interna del backend; jamás se expondrá directamente al navegador.
+- **Proveedores opcionales y aislados**: LanguageTool y Ollama permanecen apagados por defecto. Sólo el backend puede conectarse por loopback, nunca el navegador; Ollama exige perfil, modelo y digest aprobados y su falla no bloquea el motor determinístico.
 
 ---
 
@@ -60,9 +60,10 @@ requirements-web.txt         # Dependencias web adicionales (FastAPI, uvicorn, p
        | 3. Creación de subdirectorio aislado: <jobs_dir>/<job_uuid>/
        |    Guarda input.docx original de forma intacta. Estado inicial: "recibido".
        v
-[ Concurrency Limiter (Semaphore) ]
-       | 4. Control de concurrencia: si hay cupo -> pasa a "procesando".
-       |    Si la cola/capacidad está saturada -> HTTP 503 (Servicio Ocupado).
+[ FIFO Queue + Workers ]
+       | 4. Admisión atómica, capacidad fija y cupo por usuario.
+       |    Dos trabajadores determinísticos; uno con Ollama activo.
+       |    Si la capacidad está saturada -> HTTP 503 + Retry-After.
        v
 [ Worker / ThreadPool ]
        | 5. Ejecución del motor determinístico (review_document):
@@ -100,11 +101,11 @@ Cada procesamiento atraviesa un ciclo de vida unidireccional y finito:
 | Amenaza | Vector / Escenario | Medida de Mitigación Implementada |
 |---|---|---|
 | **Carga de ejecutables o scripts** | Subir `.exe`, `.bat` o `.php` renombrados. | Verificación doble: extensión `.docx` + firma mágica `PK\x03\x04` + inspección obligatoria de estructura ZIP conteniendo `word/document.xml`. |
-| **Denegación de servicio por tamaño (Zip Bomb / Archivo Gigante)** | Subir archivos de cientos de megabytes o zips altamente comprimidos. | Límite estricto de tamaño (`MAX_FILE_SIZE_MB`, por defecto 25 MB). Se verifica `Content-Length` y se interrumpe la lectura si el flujo excede el límite. Descompresión controlada mediante `python-docx` y `lxml`. |
-| **Agotamiento de CPU por concurrencia desmedida** | Múltiples cargas simultáneas colapsan la máquina servidora. | Semáforo de concurrencia acotado (`MAX_CONCURRENT_JOBS`, por defecto 2 procesamientos simultáneos). Rechazo inmediato con código HTTP 503 ante saturación. |
+| **Denegación de servicio por tamaño (Zip Bomb / Archivo Gigante)** | Subir archivos de cientos de megabytes o zips altamente comprimidos. | Flujo directo a temporal, límite de 25 MB, total y ratio descomprimido, máximo de entradas y entrada individual; rechazo de duplicados, cifrado, rutas anómalas y XML con entidades/DOCTYPE. |
+| **Agotamiento de CPU por concurrencia desmedida** | Múltiples cargas simultáneas colapsan la máquina servidora. | Cola FIFO acotada, admisión atómica, cupo por usuario, dos trabajadores como máximo y `503` con `Retry-After`; un trabajador cuando Ollama está activo. |
 | **Fuga de información confidencial en registros (Logs)** | Registro involuntario de párrafos, cifras o nombres de auditoría en los archivos de log del servidor. | **Política de Cero Texto en Logs**: El subsistema de registro únicamente emite marcas temporales, identificadores aleatorios (UUID), tamaño en bytes, código de estado y tiempos de ejecución. Nunca se imprimen cadenas extraídas de los documentos. |
 | **Persistencia indebida de documentos en el servidor** | Acumulación de auditorías sensibles en el disco del servidor central. | **Limpieza estricta por TTL**: Parámetro `JOB_TTL_SECONDS` (por defecto 1800 s / 30 minutos). Un recolector en segundo plano elimina de forma irrecuperable los archivos y directorios del trabajo una vez expirado el plazo. |
-| **Exposición no autorizada de servicios auxiliares (Ollama/LLM)** | Acceso directo de clientes al puerto de Ollama o reconfiguración de prompts. | Ollama no se expone a la red ni al navegador. Toda interacción futura ocurrirá estrictamente de backend a backend vía HTTP local autenticado. |
+| **Exposición o sustitución de Ollama/LLM** | Acceso directo al puerto, cambio de modelo o prompt no evaluado. | Loopback obligatorio, perfil estricto con hash de evaluación/commit/prompt, digest verificado, un proveedor a la vez y uso sintético restringido al modo demo. |
 | **Acceso directo no controlado desde la red** | Exposición del puerto de desarrollo a interfaces externas sin cifrado. | Por diseño, la aplicación escucha exclusivamente en `127.0.0.1` de forma predeterminada. |
 
 ---
@@ -155,7 +156,7 @@ El backend de este MVP opera como servicio interno local (`127.0.0.1:8000`). En 
 - En el arranque, los trabajos que quedaron en `recibido` o `procesando` se
   marcan `fallido` con un motivo técnico sanitizado. Después se aplica la purga
   normal por TTL.
-- El middleware agrega CSP, `nosniff`, `SAMEORIGIN`, política de referente,
+- El middleware valida `Origin`/`Referer` en mutaciones, aplica límites de tasa y agrega CSP, `nosniff`, `SAMEORIGIN`, política de referente,
   permisos restringidos y `Cache-Control: no-store` a todas las respuestas.
 
 ## 9. Decisiones Humanas del Piloto

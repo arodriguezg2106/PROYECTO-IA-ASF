@@ -94,8 +94,9 @@ Para presentar el flujo desde una sola computadora, instale también
 ```
 
 El modo demo sólo acepta conexiones de loopback, crea un DOCX completamente
-sintético con una discrepancia visible y no utiliza SQL Server, IIS, Ollama ni
-servicios externos. La guía de presentación está en
+sintético con una discrepancia visible y no utiliza SQL Server ni IIS. Ollama
+sigue apagado salvo que se proporcione expresamente un perfil sintético válido;
+su falla nunca bloquea el motor determinístico. La guía de presentación está en
 [`docs/demostracion_local.md`](docs/demostracion_local.md).
 
 ## Generar y leer el ejemplo sintético (comprobación de la instalación)

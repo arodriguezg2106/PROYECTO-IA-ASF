@@ -7,7 +7,7 @@ name = "revisor-crf"
 version = "0.5.0"
 description = "Lector y motor híbrido local de validaciones para documentos CRF"
 requires-python = ">=3.11"
-dependencies = ["python-docx==1.2.0", "lxml==6.0.2"]
+dependencies = ["python-docx==1.2.0", "lxml==6.1.0"]
 
 [project.scripts]
 revisor-crf = "revisor_crf.cli:main"

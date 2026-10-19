@@ -1,9 +1,9 @@
 # Demostración local antes de la reunión con TI
 
 Esta modalidad sirve para presentar la idea desde la computadora de desarrollo.
-Ejecuta el motor determinístico y la web real, pero **no** usa SQL Server, IIS,
-Ollama, servicios externos ni documentos institucionales. LanguageTool permanece
-apagado mientras no exista un perfil aprobado.
+Ejecuta el motor determinístico y la web real, pero **no** usa SQL Server, IIS
+ni documentos institucionales. Los proveedores lingüísticos permanecen
+apagados salvo activación explícita con un perfil aprobado.
 
 ## Preparación única
 
@@ -46,6 +46,30 @@ El parámetro `-LanguageTool` no debe utilizarse con el perfil candidato actual:
 la compuerta vigente fue rechazada por exhaustividad insuficiente. Cuando una
 evaluación futura genere un perfil aprobado, el script exigirá además
 `-Editorial`, `-LanguageToolProfile` y limitará la web a un trabajo concurrente.
+
+Un modelo que haya superado la evaluación sintética puede mostrarse, sólo con
+el DOCX sintético y Ollama en loopback:
+
+```powershell
+.\scripts\start_local_demo.ps1 -Editorial -Ollama `
+  -OllamaProfile .\results\colab\perfil-ollama.json
+```
+
+LanguageTool y Ollama son mutuamente excluyentes. Si Ollama se detiene, vence
+el timeout o devuelve JSON inválido, la revisión determinística debe terminar y
+el proveedor aparecerá como parcial.
+
+Para obtener evidencia agregada de saturación y rendimiento, deje la demo
+activa en una terminal y ejecute en otra:
+
+```powershell
+$env:PYTHONPATH = "src;scripts"
+.\.venv\Scripts\python.exe scripts\load_test_web.py `
+  .\data\demo_crf_sintetico.docx --requests 8
+```
+
+El JSON queda bajo `results/demo/` (ignorado por Git) y no contiene nombres ni
+texto documental.
 
 Para detenerla, presione `Ctrl+C` en PowerShell. Los trabajos se guardan en
 `tmp/revisor_web_jobs`, carpeta ignorada por Git, y expiran según el TTL local.
