@@ -182,10 +182,12 @@ def render_summary(report):
     lines += ["","## Documentos","","| Documento | Estado | Hallazgos | Sin cambios | Reporte |","|---|---|---:|---|---|"]
     for item in report["documents"]:
         link=item.get("outputs",{}).get("html"); rendered=f"[{item['output_key']}]({link})" if link else "—"
-        lines.append(f"| {item['file'].replace('|','\\|')} | {item['status']} | {item.get('findings','—')} | {item['hash_unchanged']} | {rendered} |")
+        escaped_file=item["file"].replace("|", "\\|")
+        lines.append(f"| {escaped_file} | {item['status']} | {item.get('findings','—')} | {item['hash_unchanged']} | {rendered} |")
     lines += ["","## Muestra estratificada para validación humana","","| Documento | Regla | Estado | Método | Ubicación | Reporte |","|---|---|---|---|---|---|"]
     for item in report["validation_sample"]:
-        lines.append(f"| {item['file'].replace('|','\\|')} | {item['rule_id']} | {item['evaluation_status']} | {item['detection_method']} | {item['paragraph_id']} | [abrir]({item['report']}) |")
+        escaped_file=item["file"].replace("|", "\\|")
+        lines.append(f"| {escaped_file} | {item['rule_id']} | {item['evaluation_status']} | {item['detection_method']} | {item['paragraph_id']} | [abrir]({item['report']}) |")
     lines += ["","## Limitaciones",""]+[f"- {x}" for x in report["limitations"]]
     return "\n".join(lines)+"\n"
 

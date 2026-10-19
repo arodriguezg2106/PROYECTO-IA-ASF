@@ -25,6 +25,7 @@ tests/data/*
 !tests/data/editorial_paired_synthetic.json
 !tests/data/languagetool_synthetic.json
 !tests/data/languagetool_candidate_profile.json
+!tests/data/editorial_context_cases.json
 input/
 output/
 outputs/
