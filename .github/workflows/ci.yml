@@ -52,7 +52,7 @@ jobs:
       - run: python -m pip install pip-audit
       - run: pip-audit -r requirements-web.txt --format cyclonedx-json --output sbom-web.cdx.json
       - run: pip-audit -r requirements-reporting.txt --format cyclonedx-json --output sbom-reporting.cdx.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: sbom-cyclonedx
