@@ -10,7 +10,13 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
-from revisor_crf.editorial import EditorialConfig, OllamaEditorialProvider, load_editorial_catalog
+from revisor_crf.editorial import (
+    EDITORIAL_PROMPT_SHA256,
+    EDITORIAL_PROMPT_VERSION,
+    EditorialConfig,
+    OllamaEditorialProvider,
+    load_editorial_catalog,
+)
 from revisor_crf.editorial_context_bank import load_context_bank
 from revisor_crf.editorial_model_evaluation import (
     build_stage_cases,
@@ -124,6 +130,8 @@ def main(argv=None, *, provider_factory=None):
             "schema_version": "editorial-context-model-gates-1.0",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "source_commit": _source_commit(),
+            "prompt_version": EDITORIAL_PROMPT_VERSION,
+            "prompt_sha256": EDITORIAL_PROMPT_SHA256,
             "synthetic_dataset_sha256": hashlib.sha256(Path(args.dataset).read_bytes()).hexdigest(),
             "synthetic_dataset": dataset["schema_version"],
             "evaluation_scope": (

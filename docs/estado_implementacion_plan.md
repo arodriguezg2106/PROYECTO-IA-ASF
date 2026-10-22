@@ -10,8 +10,8 @@ de noviembre de 2026.
 | LanguageTool | Repetido sobre 90 casos, incluidos 5 pares reales compatibles. La compuerta obtuvo precisión 1.0, exhaustividad 0.4419, cero falsos positivos, acuerdo 1.0 y 4 propuestas inseguras; permanece rechazado. | Mantenerlo apagado. Sólo reevaluar con más evidencia real o una mejora comprobable, sin reducir umbrales. |
 | Web | Identidad, propiedad, decisiones, purga, cabeceras, carga a disco y validación DOCX reforzada implementadas. | Ensayo limpio, carga y DAST. |
 | Cola | FIFO explícita, capacidad y cupo por usuario, admisión atómica, trabajadores limitados, timeout cooperativo y métricas agregadas. | Medir éxito y p95; documentar evidencia. |
-| Ollama | Integración opcional detrás de perfil/digest, loopback, modo demo y un trabajador. Falla como `partial` sin bloquear el motor. | Ejecutar Qwen 9B y Gemma 12B en sesiones Colab separadas. |
-| Colab | Libreta privada parametrizada, token en Secrets, checkpoints 2/10/30 y metadatos de GPU/modelo. | Ejecutar dos sesiones, descargar los JSON y revocar el token temporal. |
+| Ollama | Prompt v1 rechazado: Qwen falló smoke; Gemma pasó smoke y falló difícil por 5 falsos positivos de 6 negativos. Sigue apagado. Prompt v2 conservador implementado con una regla por solicitud y abstención explícita. | Repetir primero Gemma v2 sin reducir umbrales; sólo considerar 27B después y con ≥24 GB de acelerador. |
+| Colab | Evidencias v1 de Qwen y Gemma respaldadas localmente. Libreta corregida con `zstd`, precarga y nombres de salida `prompt-v2`. | Ejecutar Gemma v2, descargar JSON/checkpoints y revocar el token temporal al terminar. |
 | CI/seguridad | CI aprobada en Python 3.11/3.14, análisis estático, dependencias/SBOM y secretos en el commit `34ff5bf`. | Ejecutar ZAP local y archivar los artefactos finales de seguridad. |
 | SQL Server | Aplazado deliberadamente. | Sólo después del piloto y respuestas formales de TI. |
 | Release | No creada: sería incorrecto etiquetar sin evidencia Colab, CI, carga y DAST. | Satisfacer checklist de `entrega_demo_2026-11-02.md` y entonces crear `demo-2026-11-02`. |

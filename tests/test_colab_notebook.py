@@ -16,6 +16,8 @@ def test_colab_notebook_is_synthetic_only_and_contains_no_real_data_commands():
     assert "gemma3:12b" in code
     assert 'userdata.get("GITHUB_TOKEN")' in code
     assert "--checkpoint-dir" in code
+    assert 'apt-get\", \"install\", \"-y\", \"-qq\", \"zstd' in code
+    assert "warmup_request" in code
     assert "selected_model" in code
     assert "drive.mount" not in code
     assert ".docx" not in code

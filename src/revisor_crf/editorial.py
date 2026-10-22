@@ -17,7 +17,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 CATALOG_PATH = Path(__file__).with_name("editorial_catalog.json")
 ABBREVIATIONS_PATH = Path(__file__).with_name("editorial_abbreviations.json")
-EDITORIAL_PROMPT_VERSION = "editorial-context-1.0"
+EDITORIAL_PROMPT_VERSION = "editorial-context-2.0"
 WORDING = {
     "aperturar": "abrir", "accesar": "acceder", "apegarse": "ajustarse o cumplir",
     "generar": "causar, originar o provocar", "estipular": "establecer",
@@ -127,10 +127,30 @@ class OllamaEditorialProvider:
     def metadata(self):
         return self.client.metadata()
 
-SYSTEM_PROMPT = ("Actúas como revisor editorial de documentos de fiscalización de la Auditoría Superior de la Federación. "
- "Revisa exclusivamente el fragmento conforme a las reglas incluidas. No inventes reglas ni hechos; no cambies el sentido técnico, jurídico o fiscalizador, cifras, importes, porcentajes, fechas, folios, nombres, siglas ni referencias normativas. "
- "Si no hay evidencia suficiente, no generes hallazgo. No señales una oración sólo por usar voz pasiva, ser breve, técnica o concluyente: explica un problema concreto sustentado por una regla. El problem_span debe ser un substring literal exacto del fragmento. "
- "Devuelve exclusivamente JSON válido. Una propuesta dependiente del contexto requiere revisión humana.")
+SYSTEM_PROMPT = (
+    "Actúas como un detector conservador de infracciones editoriales en documentos de "
+    "fiscalización de la Auditoría Superior de la Federación. Evalúa únicamente la regla "
+    "incluida en la solicitud; no hagas una revisión general ni inventes reglas, hechos o "
+    "necesidades de información. La salida preferida ante cualquier duda es "
+    "{\"findings\": []}. Sólo genera un hallazgo cuando el fragmento contiene una "
+    "infracción concreta y demostrable de esa regla. Nunca devuelvas felicitaciones, "
+    "explicaciones de que el texto está correcto ni sugerencias meramente estilísticas como "
+    "hallazgos. No pidas precisar quién actuó, agregar detalles o cambiar voz activa/pasiva "
+    "si el sentido ya es claro. Los correct_examples de la regla son contraejemplos que "
+    "deben producir findings vacío; los incorrect_examples muestran el tipo de problema, "
+    "pero no autorizan inferencias fuera del fragmento. Ejemplos obligatorios: "
+    "'La auditoría identificó deficiencias en los controles.' => findings vacío; "
+    "'Después de recibir la solicitud, la entidad emitió la respuesta correspondiente.' "
+    "=> findings vacío; 'Se concluyó que la entidad incumplió la normativa.' => findings "
+    "vacío; 'Antes de recibir la solicitud, la entidad emitió la respuesta correspondiente.' "
+    "=> hallazgo de orden lógico. No cambies el sentido técnico, jurídico o fiscalizador, "
+    "cifras, importes, porcentajes, fechas, folios, nombres, siglas ni referencias normativas. "
+    "problem_span debe ser el substring literal mínimo que demuestra el problema. Si no "
+    "puedes citarlo literalmente, devuelve findings vacío. suggested_text debe ser null "
+    "cuando la corrección dependa de información no presente. Devuelve exclusivamente JSON "
+    "válido conforme al esquema. Toda propuesta requiere revisión humana."
+)
+EDITORIAL_PROMPT_SHA256 = hashlib.sha256(SYSTEM_PROMPT.encode("utf-8")).hexdigest()
 
 def load_editorial_catalog(path=None):
     source = Path(path) if path else CATALOG_PATH
@@ -576,20 +596,21 @@ def review_editorial(path, document, config=None, catalog_path=None, provider=No
             text=p.get("text","")[:config.max_fragment_chars]
             relevant=retrieve_rules(text,contextual); allowed={r["rule_id"]:r for r in relevant}
             if not text.strip() or not allowed:continue
-            request={"fragment":text,"location":{"paragraph_id":p["id"],"headings":p.get("headings",[])},"rules":list(allowed.values()),"protected_elements":protected_elements(text)}
-            try:
-                calls+=1; rows=_parse_response(client.review(request,ollama_schema(list(allowed))),set(allowed))
-                for row in rows:
-                    if row["confidence"]<config.confidence_threshold:continue
-                    if not row["problem_span"] or row["problem_span"] not in text:
-                        errors.append({"paragraph_id":p["id"],"code":"editorial_problem_span_not_literal"}); continue
-                    rule=allowed[row["rule_id"]]; item=_finding(rule,p,row["problem_span"],row["message"],row["suggested_text"],status="possible",method="ollama"); item["confidence"]=row["confidence"]
-                    item["requires_human_review"]=True
-                    if row["suggested_text"]:
-                        safety=verify_protected(text,row["suggested_text"])
-                        if not safety["safe"]: item["validation_status"]="rejected"; item["rejection_reason"]="La propuesta altera elementos protegidos."; item["protection_check"]=safety; rejected.append(item); continue
-                    findings.append(item)
-            except (RuntimeError,ValueError) as exc: errors.append({"paragraph_id":p["id"],"code":str(exc)})
+            for rule_id, rule in allowed.items():
+                request={"fragment":text,"location":{"paragraph_id":p["id"],"headings":p.get("headings",[])},"rules":[rule],"protected_elements":protected_elements(text)}
+                try:
+                    calls+=1; rows=_parse_response(client.review(request,ollama_schema([rule_id])),{rule_id})
+                    for row in rows:
+                        if row["confidence"]<config.confidence_threshold:continue
+                        if not row["problem_span"] or row["problem_span"] not in text:
+                            errors.append({"paragraph_id":p["id"],"rule_id":rule_id,"code":"editorial_problem_span_not_literal"}); continue
+                        item=_finding(rule,p,row["problem_span"],row["message"],row["suggested_text"],status="possible",method="ollama"); item["confidence"]=row["confidence"]
+                        item["requires_human_review"]=True
+                        if row["suggested_text"]:
+                            safety=verify_protected(text,row["suggested_text"])
+                            if not safety["safe"]: item["validation_status"]="rejected"; item["rejection_reason"]="La propuesta altera elementos protegidos."; item["protection_check"]=safety; rejected.append(item); continue
+                        findings.append(item)
+                except (RuntimeError,ValueError) as exc: errors.append({"paragraph_id":p["id"],"rule_id":rule_id,"code":str(exc)})
         method_durations["ollama"]=round(time.perf_counter()-ollama_started,6)
     language_tool_errors=[]; language_tool_calls=0
     language_tool_started=time.perf_counter()

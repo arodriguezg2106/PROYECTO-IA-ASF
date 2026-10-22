@@ -6,13 +6,33 @@ La IA contextual permanece experimental, se ejecuta sólo en infraestructura ins
 
 | Modelo | Estado | Condición |
 |---|---|---|
-| `qwen3.5:9b` | experimental | Pendiente de servidor interno y evaluación completa |
-| `gemma3:12b` | experimental | Pendiente de servidor interno y evaluación completa |
+| `qwen3.5:9b` | experimental; prompt v1 rechazado | Falló smoke con precisión 0.0, exhaustividad 0.0 y una respuesta inválida |
+| `gemma3:12b` | experimental; prompt v1 rechazado | Pasó smoke, pero falló difícil con precisión 0.375, exhaustividad 0.75 y exactitud 0.40 |
 | `qwen3.5:27b` | experimental condicionado | Requiere acreditar al menos 24 GB de memoria de acelerador |
 | `qwen3.5:4b` | rechazado | No alcanzó los umbrales vigentes |
 | `qwen3:8b` | rechazado | No alcanzó los umbrales vigentes |
 
-El equipo de desarrollo comprobado tiene aproximadamente 16 GB de RAM y no tiene GPU NVIDIA detectada. Los candidatos 9B/12B no están instalados. Por ello, la ejecución real queda pendiente de un servidor interno adecuado; no deben descargarse para sortear esa limitación. Ese inventario puede registrarse en el preflight con `--available-models qwen3:8b,qwen3.5:4b`, que marcará los candidatos como `model_not_available_locally` sin llamar a Ollama.
+Los resultados v1 se obtuvieron en Colab con una Tesla T4 de 15 GB y Ollama
+0.40.8, exclusivamente sobre datos sintéticos. No autorizan procesar CRF
+reales. La ejecución institucional continúa pendiente de infraestructura
+interna autorizada.
+
+## Experimento conservador prompt v2
+
+La versión `editorial-context-2.0` mantiene los umbrales y cambia únicamente la
+estrategia de consulta:
+
+- una sola regla por solicitud;
+- abstención (`findings: []`) como respuesta preferida ante duda;
+- prohibición de convertir elogios, textos correctos o mejoras estilísticas en
+  hallazgos;
+- contraejemplos sintéticos de oraciones correctas que Gemma marcó en v1;
+- `problem_span` literal y mínimo, y sugerencia nula si falta contexto;
+- versión y SHA-256 del prompt registrados en el JSON de evaluación.
+
+Primero se repite `gemma3:12b`, porque fue estable y llegó a la compuerta
+difícil. Qwen sólo se reconsiderará si Gemma mejora o si se necesita una
+comparación adicional. Un resultado v2 no sustituye la compuerta real local.
 
 ## Secuencia obligatoria
 

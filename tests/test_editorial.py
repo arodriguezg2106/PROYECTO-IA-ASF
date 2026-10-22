@@ -7,7 +7,16 @@ from docx.shared import Cm
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
-from revisor_crf.editorial import EditorialConfig, _ignore_spelling_match, _parse_response, protected_elements, verify_protected
+from revisor_crf.editorial import (
+    EDITORIAL_PROMPT_SHA256,
+    EDITORIAL_PROMPT_VERSION,
+    SYSTEM_PROMPT,
+    EditorialConfig,
+    _ignore_spelling_match,
+    _parse_response,
+    protected_elements,
+    verify_protected,
+)
 from revisor_crf.editorial_models import authorize_model, load_model_registry, evaluation_passes
 from revisor_crf.editorial_context_bank import load_context_bank
 from revisor_crf.editorial import retrieve_rules
@@ -55,6 +64,37 @@ def test_ollama_json_validation_and_controlled_repair():
 
 class FailingProvider:
     def review(self,request,schema): raise RuntimeError("ollama_unavailable")
+
+
+class RecordingProvider:
+    def __init__(self): self.requests=[]
+    def review(self,request,schema):
+        self.requests.append((request,schema))
+        return json.dumps({"findings":[]})
+
+
+def test_prompt_v2_is_conservative_and_hashed():
+    assert EDITORIAL_PROMPT_VERSION == "editorial-context-2.0"
+    assert '"findings": []' in SYSTEM_PROMPT
+    assert "correct_examples" in SYSTEM_PROMPT
+    assert "sugerencias meramente estilísticas" in SYSTEM_PROMPT
+    assert len(EDITORIAL_PROMPT_SHA256) == 64
+
+
+def test_ollama_receives_exactly_one_rule_per_request(tmp_path):
+    path=make_doc(tmp_path,"La Secretaría (ASF) informó que se revisó el expediente completo.")
+    config_path=tmp_path/"config.json"
+    config_path.write_text(json.dumps({"editorial":{
+        "ollama_enabled":True,"experimental_model":True,"model":"gemma3:12b",
+        "check_format":False,
+    }}),encoding="utf-8")
+    provider=RecordingProvider()
+    review_document(path,editorial=True,editorial_provider=provider,
+                    editorial_config_path=config_path)
+    assert len(provider.requests) == 2
+    for request,schema in provider.requests:
+        assert len(request["rules"]) == 1
+        assert schema["properties"]["findings"]["items"]["properties"]["rule_id"]["enum"] == [request["rules"][0]["rule_id"]]
 
 def test_ollama_failure_does_not_stop_review(tmp_path):
     config=EditorialConfig(ollama_enabled=True)
