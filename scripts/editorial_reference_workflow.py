@@ -339,7 +339,7 @@ def import_adjudication(workbook_path, manifest_path, corpus_path, output_path):
         ]
         if [_text_hash(value) for value in row[:5]] != canonical_hashes:
             raise ValueError(f"Se modificó evidencia fija en {item['blind_id']}.")
-        decision = _decision(row, 5)
+        decision = _second_review_decision(row, 5, row[10])
         if not row[10]:
             raise ValueError(f"Falta la justificación de adjudicación en {item['blind_id']}.")
         imported.append({"blind_id": item["blind_id"], "evidence_id": item["evidence_id"],
@@ -352,7 +352,15 @@ def import_adjudication(workbook_path, manifest_path, corpus_path, output_path):
                    "validation_sha256": manifest["source"]["validation_sha256"],
                    "second_review_sha256": manifest["source"]["second_review_sha256"],
                    "corpus_sha256": _file_hash(corpus_path)},
-        "summary": {"cases": len(imported)}, "cases": imported,
+        "summary": {
+            "cases": len(imported),
+            "terminal_justified": sum(
+                item["decision"]["usable"] in {"No", "No puedo determinarlo"}
+                and item["decision"]["category"] is None
+                for item in imported
+            ),
+        },
+        "cases": imported,
     }
     _write_json(output_path, payload)
     return payload
@@ -462,6 +470,7 @@ def build_paired_banks(validation_path, second_path, adjudication_path, corpus_p
                     "excluded": len(exclusions), "by_category": dict(categories)},
         "cases": real_cases, "exclusions": exclusions,
     }
+    _write_json(real_output_path, real_payload)
     synthetic_pairs = []
     for number, pair in enumerate(real_pairs, 1):
         before, after = SYNTHETIC_TEMPLATES[pair["category"]]
@@ -482,10 +491,16 @@ def build_paired_banks(validation_path, second_path, adjudication_path, corpus_p
     synthetic_payload = {
         "schema_version": "editorial-synthetic-paired-bank-1.0", "synthetic": True,
         "privacy": {"contains_raw_institutional_text": False, "safe_for_version_control": True},
+        "source": {
+            "validation_sha256": _file_hash(validation_path),
+            "second_review_sha256": _file_hash(second_path),
+            "adjudication_sha256": _file_hash(adjudication_path),
+            "real_bank_sha256": _file_hash(real_output_path),
+        },
         "summary": {"pairs": len(synthetic_pairs), "examples": len(synthetic_pairs) * 2,
-                    "by_category": dict(categories)}, "cases": synthetic_cases,
+                    "excluded": len(exclusions), "by_category": dict(categories)},
+        "cases": synthetic_cases,
     }
-    _write_json(real_output_path, real_payload)
     _write_json(synthetic_output_path, synthetic_payload)
     return real_payload, synthetic_payload
 

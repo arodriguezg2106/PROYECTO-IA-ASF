@@ -30,8 +30,10 @@ python scripts/editorial_reference_workflow.py import-second `
   --output results/editorial_second_review/segunda_revision.json
 ```
 
-La importación rechaza columnas, filas o evidencia fija alteradas y exige las
-cinco respuestas de cada caso. El JSON importado se considera confidencial
+La importación rechaza columnas, filas o evidencia fija alteradas. Exige las
+cinco respuestas cuando la primera es `Sí`; una respuesta `No` o `No puedo
+determinarlo` puede dejar las otras cuatro vacías si incluye explicación. El
+JSON importado se considera confidencial
 porque la explicación libre puede reproducir información institucional, aunque
 se omita el nombre del revisor; por ello también permanece bajo `results/`.
 
@@ -82,12 +84,13 @@ contextual debe puntuar únicamente `Ortografía o gramática` y `Coherencia o
 claridad`; cifras, formato y criterio técnico se reportan fuera del denominador
 salvo que el proveedor declare explícitamente soporte para ellas.
 
-Los pares con texto faltante o idéntico se excluyen con una razón explícita.
-En el material actual, siete de las 31 referencias iniciales cumplen una de
-esas condiciones, por lo que el máximo previo a la segunda revisión es de 24
-pares y 48 casos. El banco sintético conserva solamente categoría y estructura
-del conjunto final; no copia fragmentos, nombres, cifras ni referencias del
-material institucional y sí puede versionarse.
+Los pares con texto faltante, idéntico, rechazado o indeterminado se excluyen
+con una razón explícita. El banco definitivo del 22 de octubre contiene 16
+pares y 32 ejemplos; documenta 15 exclusiones. Su distribución es 8 pares de
+coherencia o claridad, 5 de ortografía o gramática, 1 de cifras o datos y 2 de
+criterio técnico o normativo. El banco sintético conserva solamente categoría
+y estructura del conjunto final; no copia fragmentos, nombres, cifras ni
+referencias del material institucional y sí puede versionarse.
 
 No se debe generar el banco definitivo simulando respuestas. Si existe un solo
 desacuerdo sin adjudicar, la construcción termina con error.

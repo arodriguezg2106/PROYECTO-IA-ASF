@@ -114,6 +114,8 @@ def test_complete_double_review_adjudication_and_paired_banks(tmp_path):
     assert all(item["expected_finding"] == (item["variant"] == "before") for item in real["cases"])
     assert real["exclusions"][0]["reason"] == "identical_pair_text"
     assert synthetic["privacy"]["safe_for_version_control"] is True
+    assert synthetic["summary"]["excluded"] == 1
+    assert len(synthetic["source"]["real_bank_sha256"]) == 64
     synthetic_text = synthetic_path.read_text(encoding="utf-8")
     assert "Texto confuso" not in synthetic_text
     assert "documento-" not in synthetic_text
@@ -179,6 +181,30 @@ def test_second_review_rejects_unjustified_or_partial_terminal_answer(
         import_second_review(
             blind_book, blind_manifest, validation, corpus, tmp_path / "second.json"
         )
+
+
+def test_adjudication_accepts_justified_terminal_answer(tmp_path):
+    validation, corpus = _sources(tmp_path)
+    blind_book, blind_manifest = tmp_path / "blind.xlsx", tmp_path / "blind-manifest.json"
+    build_blind_package(validation, corpus, blind_book, blind_manifest)
+    _fill_second(blind_book, disagreement=True)
+    second_path = tmp_path / "second.json"
+    import_second_review(blind_book, blind_manifest, validation, corpus, second_path)
+    adj_book, adj_manifest = tmp_path / "adj.xlsx", tmp_path / "adj-manifest.json"
+    build_adjudication_workbook(validation, second_path, corpus, adj_book, adj_manifest)
+    workbook = load_workbook(adj_book)
+    sheet = workbook.active
+    sheet.cell(2, 6).value = "No puedo determinarlo"
+    for column in range(7, 11):
+        sheet.cell(2, column).value = None
+    sheet.cell(2, 11).value = "La evidencia no permite emitir una decisión final."
+    workbook.save(adj_book)
+
+    result = import_adjudication(
+        adj_book, adj_manifest, corpus, tmp_path / "adjudication.json"
+    )
+    assert result["summary"] == {"cases": 1, "terminal_justified": 1}
+    assert result["cases"][0]["decision"]["category"] is None
 
 
 def test_bank_requires_adjudication_for_every_disagreement(tmp_path):

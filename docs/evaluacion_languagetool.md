@@ -14,17 +14,24 @@ inseguras. Sólo quedaron como candidatas:
 - `MORFOLOGIK_RULE_ES`;
 - `COMMA_PARENTHESIS_WHITESPACE`.
 
-Al limitar la ejecución a esas dos reglas, la compuerta obtuvo precisión 1.0 y
-exhaustividad 0.4737. No alcanzó el mínimo de 0.75, por lo que **LanguageTool
-permanece desactivado en la web**. El perfil versionado es candidato, no
-aprobado. No se redujeron los umbrales.
+Al limitar la ejecución a esas dos reglas, la compuerta sintética obtuvo
+precisión 1.0 y exhaustividad 0.4737. No alcanzó el mínimo de 0.75.
+
+La evaluación se repitió el 22 de octubre con el banco real adjudicado: 90
+casos totales, incluidas 10 observaciones reales compatibles (5 pares). En modo
+`gate` obtuvo 19 verdaderos positivos, 0 falsos positivos, 24 falsos negativos
+y 47 verdaderos negativos: precisión 1.0, exhaustividad 0.4419, tasa de falsos
+positivos 0, acuerdo 1.0, cero respuestas inválidas y 4 propuestas inseguras.
+Por tanto, **LanguageTool permanece desactivado en la web**. El perfil es
+`rejected` y no se redujeron los umbrales.
 
 ## Bancos y privacidad
 
 - `tests/data/languagetool_synthetic.json`: 30 pares inventados y versionables.
 - Banco editorial sintético existente: se incluyen únicamente casos compatibles.
-- Banco real pareado: se incorporará únicamente después de la adjudicación y
-  permanecerá bajo `results/`.
+- Banco real pareado: 16 pares/32 ejemplos, conservado bajo `results/`. Sólo 5
+  pares corresponden a ortografía o gramática y son compatibles con esta
+  evaluación.
 
 Los reportes guardan identificadores, reglas, hashes y métricas, pero no el
 texto de los casos. Un mínimo de 10 pares reales de ortografía o gramática es
@@ -66,7 +73,7 @@ python scripts\evaluate_languagetool.py `
   --profile-output results\languagetool\gate-profile.json
 ```
 
-Cuando exista el banco real, se añade otro argumento:
+Para repetir la evaluación local con el banco real se añade otro argumento:
 
 ```powershell
 --bank results\editorial_revision_validation\paired_evaluation_bank.json

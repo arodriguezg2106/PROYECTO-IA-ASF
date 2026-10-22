@@ -1,0 +1,315 @@
+{
+  "schema_version": "editorial-synthetic-paired-bank-1.0",
+  "synthetic": true,
+  "privacy": {
+    "contains_raw_institutional_text": false,
+    "safe_for_version_control": true
+  },
+  "source": {
+    "validation_sha256": "7fa2a50cedc6ecf68fdf0b45e17ab333508096e3a5f0b4e9bb314356005a759c",
+    "second_review_sha256": "fc708aa6ba3544731b951a3735d9b441c4c1913cf5c28a5092d72f2c14965f04",
+    "adjudication_sha256": "6665793def4472ac24c6a4642a081136624b6ef03168b692487f0113056ec6b4",
+    "real_bank_sha256": "749d4a47de1b8208c930f3e438fd881419d03a61a300a60418582b775415730a"
+  },
+  "summary": {
+    "pairs": 16,
+    "examples": 32,
+    "excluded": 15,
+    "by_category": {
+      "Coherencia o claridad": 8,
+      "Cifras o datos": 1,
+      "Ortografía o gramática": 5,
+      "Criterio técnico o normativo": 2
+    }
+  },
+  "cases": [
+    {
+      "case_id": "SYN-001-before",
+      "fragment": "El área revisó el expediente 1, esto fue realizado por la misma.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-001",
+      "variant": "before",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-001-after",
+      "fragment": "El área revisó el expediente 1 y documentó el procedimiento.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-001",
+      "variant": "after",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-002-before",
+      "fragment": "Las partidas fueron 30 y 40; el total reportado fue 80 en el caso 2.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-002",
+      "variant": "before",
+      "category": "Cifras o datos"
+    },
+    {
+      "case_id": "SYN-002-after",
+      "fragment": "Las partidas fueron 30 y 40; el total reportado fue 70 en el caso 2.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-002",
+      "variant": "after",
+      "category": "Cifras o datos"
+    },
+    {
+      "case_id": "SYN-003-before",
+      "fragment": "El área revisó el expediente 3, esto fue realizado por la misma.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-003",
+      "variant": "before",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-003-after",
+      "fragment": "El área revisó el expediente 3 y documentó el procedimiento.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-003",
+      "variant": "after",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-004-before",
+      "fragment": "El área entrego el informe número 4.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-004",
+      "variant": "before",
+      "category": "Ortografía o gramática"
+    },
+    {
+      "case_id": "SYN-004-after",
+      "fragment": "El área entregó el informe número 4.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-004",
+      "variant": "after",
+      "category": "Ortografía o gramática"
+    },
+    {
+      "case_id": "SYN-005-before",
+      "fragment": "El área revisó el expediente 5, esto fue realizado por la misma.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-005",
+      "variant": "before",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-005-after",
+      "fragment": "El área revisó el expediente 5 y documentó el procedimiento.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-005",
+      "variant": "after",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-006-before",
+      "fragment": "El área entrego el informe número 6.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-006",
+      "variant": "before",
+      "category": "Ortografía o gramática"
+    },
+    {
+      "case_id": "SYN-006-after",
+      "fragment": "El área entregó el informe número 6.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-006",
+      "variant": "after",
+      "category": "Ortografía o gramática"
+    },
+    {
+      "case_id": "SYN-007-before",
+      "fragment": "El área entrego el informe número 7.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-007",
+      "variant": "before",
+      "category": "Ortografía o gramática"
+    },
+    {
+      "case_id": "SYN-007-after",
+      "fragment": "El área entregó el informe número 7.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-007",
+      "variant": "after",
+      "category": "Ortografía o gramática"
+    },
+    {
+      "case_id": "SYN-008-before",
+      "fragment": "El área entrego el informe número 8.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-008",
+      "variant": "before",
+      "category": "Ortografía o gramática"
+    },
+    {
+      "case_id": "SYN-008-after",
+      "fragment": "El área entregó el informe número 8.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-008",
+      "variant": "after",
+      "category": "Ortografía o gramática"
+    },
+    {
+      "case_id": "SYN-009-before",
+      "fragment": "El área revisó el expediente 9, esto fue realizado por la misma.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-009",
+      "variant": "before",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-009-after",
+      "fragment": "El área revisó el expediente 9 y documentó el procedimiento.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-009",
+      "variant": "after",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-010-before",
+      "fragment": "El área revisó el expediente 10, esto fue realizado por la misma.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-010",
+      "variant": "before",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-010-after",
+      "fragment": "El área revisó el expediente 10 y documentó el procedimiento.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-010",
+      "variant": "after",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-011-before",
+      "fragment": "El área revisó el expediente 11, esto fue realizado por la misma.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-011",
+      "variant": "before",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-011-after",
+      "fragment": "El área revisó el expediente 11 y documentó el procedimiento.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-011",
+      "variant": "after",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-012-before",
+      "fragment": "La observación del caso 12 incumplió la normativa aplicable.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-012",
+      "variant": "before",
+      "category": "Criterio técnico o normativo"
+    },
+    {
+      "case_id": "SYN-012-after",
+      "fragment": "La observación del caso 12 incumplió el artículo 12 del Reglamento de Ejemplo.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-012",
+      "variant": "after",
+      "category": "Criterio técnico o normativo"
+    },
+    {
+      "case_id": "SYN-013-before",
+      "fragment": "El área revisó el expediente 13, esto fue realizado por la misma.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-013",
+      "variant": "before",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-013-after",
+      "fragment": "El área revisó el expediente 13 y documentó el procedimiento.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-013",
+      "variant": "after",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-014-before",
+      "fragment": "El área entrego el informe número 14.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-014",
+      "variant": "before",
+      "category": "Ortografía o gramática"
+    },
+    {
+      "case_id": "SYN-014-after",
+      "fragment": "El área entregó el informe número 14.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-014",
+      "variant": "after",
+      "category": "Ortografía o gramática"
+    },
+    {
+      "case_id": "SYN-015-before",
+      "fragment": "El área revisó el expediente 15, esto fue realizado por la misma.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-015",
+      "variant": "before",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-015-after",
+      "fragment": "El área revisó el expediente 15 y documentó el procedimiento.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-015",
+      "variant": "after",
+      "category": "Coherencia o claridad"
+    },
+    {
+      "case_id": "SYN-016-before",
+      "fragment": "La observación del caso 16 incumplió la normativa aplicable.",
+      "expected_finding": true,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-016",
+      "variant": "before",
+      "category": "Criterio técnico o normativo"
+    },
+    {
+      "case_id": "SYN-016-after",
+      "fragment": "La observación del caso 16 incumplió el artículo 12 del Reglamento de Ejemplo.",
+      "expected_finding": false,
+      "acceptable_spans": [],
+      "source_pair_id": "SYN-016",
+      "variant": "after",
+      "category": "Criterio técnico o normativo"
+    }
+  ]
+}

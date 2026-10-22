@@ -9,30 +9,33 @@ válido; una falla del proveedor no interrumpe el resultado base.
 
 ## Compuertas antes de etiquetar `demo-2026-11-02`
 
-- [ ] CI verde en Python 3.11 y 3.14.
-- [ ] `pip-audit`, Bandit y Gitleaks sin vulnerabilidades críticas/altas.
-- [ ] SBOM CycloneDX archivado con el expediente.
-- [ ] Suite completa y `git diff --check` limpios.
+- [x] CI verde en Python 3.11 y 3.14.
+- [x] `pip-audit`, Bandit y Gitleaks sin vulnerabilidades críticas/altas.
+- [x] SBOM CycloneDX generado por CI como artefacto.
+- [x] Suite completa y `git diff --check` limpios.
 - [ ] Instalación limpia y guion ensayados en otra carpeta.
 - [ ] Carga: FIFO, cupo por usuario, `503`, p95 ≤ 30 s y ≥95 % de éxito.
 - [ ] ZAP ejecutado; alertas medias resueltas o justificadas.
 - [ ] JSON de Qwen y Gemma adjuntos, incluso si ambos fallan.
 - [ ] Riesgos residuales y reversión aprobados.
 
-## Evidencia local del 19 de octubre
+## Evidencia disponible al 22 de octubre
 
-- 258 pruebas aprobadas en Python 3.14 (`258 passed`).
+- 259 pruebas aprobadas localmente en Python 3.14 (`259 passed`).
 - Bandit sin hallazgos de severidad alta.
 - `pip-audit` sin vulnerabilidades conocidas tras actualizar `lxml` a 6.1.0 y
   `pytest` a 9.0.3.
 - Carga sintética local: 8 solicitudes, 2 aceptadas, 4 rechazadas con `503`, 2
   limitadas con `429`, 100 % de éxito entre las aceptadas y p95 de 0.311 s.
+- CI aprobada en Python 3.11 y 3.14, análisis estático, dependencias/SBOM y
+  secretos para el commit `34ff5bf`.
+- Adjudicación final importada: 26 casos; banco local de 16 pares/32 ejemplos y
+  15 exclusiones justificadas.
+- LanguageTool rechazado tras incorporar el banco real: precisión 1.0,
+  exhaustividad 0.4419 y 4 propuestas inseguras.
 
-La evidencia local no reemplaza la ejecución de CI en GitHub ni ZAP. El JSON de
-carga permanece en `results/demo/`, fuera de Git.
-
-La adjudicación delegada se importa si llega a tiempo, pero no bloquea la demo.
-Sí bloquea la aprobación institucional de proveedores lingüísticos.
+La evidencia local y la CI no reemplazan ZAP. El JSON de carga, la adjudicación
+y el banco real permanecen bajo `results/`, fuera de Git.
 
 ## Guion de 10–15 minutos
 
