@@ -10,6 +10,7 @@ if (-not (Test-Path -LiteralPath $pidFile -PathType Leaf)) {
 $processId = [int](Get-Content -Raw -LiteralPath $pidFile)
 $process = Get-CimInstance Win32_Process -Filter "ProcessId=$processId" -ErrorAction SilentlyContinue
 if (-not $process) {
+    Remove-Item -LiteralPath $pidFile -Force
     Write-Output "El proceso registrado ya no existe."
     exit 0
 }
@@ -17,4 +18,5 @@ if ($process.CommandLine -notlike "*languagetool-server.jar*") {
     throw "El PID $processId no corresponde a LanguageTool; no se detuvo ningún proceso."
 }
 Stop-Process -Id $processId
+Remove-Item -LiteralPath $pidFile -Force
 Write-Output "LanguageTool detenido (PID $processId, puerto $Port)."
