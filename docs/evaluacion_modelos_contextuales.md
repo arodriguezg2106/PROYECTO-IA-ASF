@@ -6,8 +6,8 @@ La IA contextual permanece experimental, se ejecuta sólo en infraestructura ins
 
 | Modelo | Estado | Condición |
 |---|---|---|
-| `qwen3.5:9b` | experimental; prompt v1 rechazado | Falló smoke con precisión 0.0, exhaustividad 0.0 y una respuesta inválida |
-| `gemma3:12b` | experimental; prompt v1 rechazado | Pasó smoke, pero falló difícil con precisión 0.375, exhaustividad 0.75 y exactitud 0.40 |
+| `qwen3.5:9b` | rechazado | Falló smoke con precisión 0.0, exhaustividad 0.0 y una respuesta inválida |
+| `gemma3:12b` | rechazado | V1 falló por falsos positivos; v2.1 falló por exhaustividad 0.25 |
 | `qwen3.5:27b` | experimental condicionado | Requiere acreditar al menos 24 GB de memoria de acelerador |
 | `qwen3.5:4b` | rechazado | No alcanzó los umbrales vigentes |
 | `qwen3:8b` | rechazado | No alcanzó los umbrales vigentes |
@@ -34,9 +34,12 @@ El prompt v2.0 conservó la detección positiva, pero marcó incorrectamente el
 gerundio simultáneo válido y falló smoke con precisión 0.5. La revisión v2.1
 elimina el anclaje al ejemplo de orden lógico y distingue expresamente gerundio
 simultáneo de posterioridad mediante ejemplos sintéticos diferentes del banco.
-Ésta es la última iteración de prompt antes de exigir un modelo mayor. Qwen sólo
-se reconsiderará si Gemma mejora o si se necesita una comparación adicional.
-Un resultado sintético no sustituye la compuerta real local.
+V2.1 pasó smoke, eliminó falsos positivos en la compuerta difícil y obtuvo
+precisión 1.0, pero su exhaustividad fue 0.25 y su exactitud 0.70: omitió tres
+de cuatro positivos. Se detienen los ajustes para no sobreajustar el banco.
+Qwen 9B y Gemma 12B quedan rechazados; la siguiente investigación posible es
+27B con al menos 24 GB de acelerador. Un resultado sintético no sustituye la
+compuerta real local.
 
 ## Secuencia obligatoria
 

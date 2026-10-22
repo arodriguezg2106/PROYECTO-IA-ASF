@@ -16,7 +16,7 @@ válido; una falla del proveedor no interrumpe el resultado base.
 - [ ] Instalación limpia y guion ensayados en otra carpeta.
 - [ ] Carga: FIFO, cupo por usuario, `503`, p95 ≤ 30 s y ≥95 % de éxito.
 - [ ] ZAP ejecutado; alertas medias resueltas o justificadas.
-- [ ] JSON de Qwen y Gemma adjuntos, incluso si ambos fallan.
+- [x] JSON de Qwen y Gemma conservados localmente, incluidos los resultados negativos.
 - [ ] Riesgos residuales y reversión aprobados.
 
 ## Evidencia disponible al 22 de octubre

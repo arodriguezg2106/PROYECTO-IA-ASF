@@ -50,6 +50,13 @@ def test_failed_evaluation_cannot_create_profile(tmp_path):
         build_profile(evaluation, tmp_path / "profile.json", digest="sha256:" + "b" * 64)
 
 
+def test_conditioned_27b_model_can_create_profile_only_after_passing(tmp_path):
+    evaluation = _evaluation(tmp_path / "evaluation-27b.json", model="qwen3.5:27b")
+    profile_path = tmp_path / "profile-27b.json"
+    build_profile(evaluation, profile_path, digest="sha256:" + "c" * 64)
+    assert load_ollama_profile(profile_path).model_id == "qwen3.5:27b"
+
+
 def test_profile_rejects_abbreviated_source_commit(tmp_path):
     evaluation = _evaluation(tmp_path / "evaluation.json")
     payload = json.loads(evaluation.read_text(encoding="utf-8"))

@@ -55,7 +55,7 @@ def load_ollama_profile(path: str | Path) -> OllamaProfile:
         raise ValueError("El modelo del perfil de Ollama es inválido.")
     model_id = str(model.get("id") or "").strip()
     digest = str(model.get("digest") or "").strip()
-    if model_id not in {"qwen3.5:9b", "gemma3:12b"} or not _DIGEST_RE.fullmatch(digest):
+    if model_id not in {"qwen3.5:9b", "gemma3:12b", "qwen3.5:27b"} or not _DIGEST_RE.fullmatch(digest):
         raise ValueError("El identificador o digest del modelo de Ollama no es válido.")
     evaluation = data.get("evaluation")
     if not isinstance(evaluation, dict) or set(evaluation) != {"sha256", "source_commit", "scope"}:

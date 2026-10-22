@@ -145,7 +145,7 @@ def test_real_bank_rejects_privacy_or_incomplete_pair(tmp_path):
 def test_registry_candidates_and_hardware_preflight():
     registry = load_model_registry()
     statuses = {item["model_id"]: item["status"] for item in registry["models"]}
-    assert statuses["qwen3.5:9b"] == statuses["gemma3:12b"] == "experimental"
+    assert statuses["qwen3.5:9b"] == statuses["gemma3:12b"] == "rejected"
     assert statuses["qwen3.5:27b"] == "experimental"
     assert statuses["qwen3.5:4b"] == statuses["qwen3:8b"] == "rejected"
     assert not _model_preflight("qwen3.5:27b", registry, 16)["eligible_to_run"]
@@ -165,7 +165,8 @@ def test_cli_preflight_never_constructs_provider(tmp_path):
     def forbidden_factory(config):
         raise AssertionError("El preflight no debe contactar al proveedor")
 
-    assert main(["--preflight", "--real-bank", str(real), "--models", "qwen3.5:9b",
+    assert main(["--preflight", "--real-bank", str(real), "--models", "qwen3.5:27b",
+                 "--available-models", "qwen3.5:27b", "--accelerator-memory-gb", "24",
                  "--output", str(output)], provider_factory=forbidden_factory) == 0
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["status"] == "preflight_complete"
@@ -179,7 +180,8 @@ def test_cli_synthetic_preflight_does_not_require_real_bank(tmp_path):
         raise AssertionError("El preflight no debe contactar al proveedor")
 
     assert main([
-        "--preflight", "--synthetic-only", "--models", "qwen3.5:9b",
+        "--preflight", "--synthetic-only", "--models", "qwen3.5:27b",
+        "--available-models", "qwen3.5:27b", "--accelerator-memory-gb", "24",
         "--real-bank", str(tmp_path / "does-not-exist.json"), "--output", str(output),
     ], provider_factory=forbidden_factory) == 0
     payload = json.loads(output.read_text(encoding="utf-8"))
@@ -196,9 +198,11 @@ def test_cli_synthetic_pass_is_screening_not_approval(tmp_path):
     output = tmp_path / "synthetic-result.json"
 
     assert main([
-        "--synthetic-only", "--models", "qwen3.5:9b", "--output", str(output),
+        "--synthetic-only", "--models", "qwen3.5:27b",
+        "--available-models", "qwen3.5:27b", "--accelerator-memory-gb", "24",
+        "--output", str(output),
     ], provider_factory=lambda config: OracleProvider(synthetic)) == 0
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["status"] == "synthetic_screen_passed"
-    assert payload["screened_model"] == "qwen3.5:9b"
+    assert payload["screened_model"] == "qwen3.5:27b"
     assert payload["selected_model"] is None

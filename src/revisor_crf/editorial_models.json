@@ -13,20 +13,22 @@
     {
       "model_id": "qwen3.5:9b",
       "provider": "ollama",
-      "status": "experimental",
+      "status": "rejected",
       "capabilities": ["editorial_context", "structured_json"],
       "context_limit": 4000,
       "timeout_seconds": 180,
-      "reason": "Candidato prioritario pendiente de las cuatro compuertas reproducibles."
+      "reason": "El prompt v1 falló smoke con precisión 0.0, exhaustividad 0.0, exactitud 0.5 y una respuesta inválida.",
+      "evaluated_at": "2026-10-22"
     },
     {
       "model_id": "gemma3:12b",
       "provider": "ollama",
-      "status": "experimental",
+      "status": "rejected",
       "capabilities": ["editorial_context", "structured_json"],
       "context_limit": 4000,
       "timeout_seconds": 180,
-      "reason": "Candidato prioritario pendiente de las cuatro compuertas reproducibles."
+      "reason": "Falló la compuerta difícil con prompt v1 y v2.1; el mejor equilibrio observado fue insuficiente. V2.1 obtuvo precisión 1.0, exhaustividad 0.25 y exactitud 0.70.",
+      "evaluated_at": "2026-10-22"
     },
     {
       "model_id": "qwen3.5:27b",
