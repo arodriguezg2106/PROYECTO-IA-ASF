@@ -17,9 +17,9 @@ Los resultados v1 se obtuvieron en Colab con una Tesla T4 de 15 GB y Ollama
 reales. La ejecución institucional continúa pendiente de infraestructura
 interna autorizada.
 
-## Experimento conservador prompt v2
+## Experimento conservador prompt v2.1
 
-La versión `editorial-context-2.0` mantiene los umbrales y cambia únicamente la
+La versión `editorial-context-2.1` mantiene los umbrales y cambia únicamente la
 estrategia de consulta:
 
 - una sola regla por solicitud;
@@ -30,9 +30,13 @@ estrategia de consulta:
 - `problem_span` literal y mínimo, y sugerencia nula si falta contexto;
 - versión y SHA-256 del prompt registrados en el JSON de evaluación.
 
-Primero se repite `gemma3:12b`, porque fue estable y llegó a la compuerta
-difícil. Qwen sólo se reconsiderará si Gemma mejora o si se necesita una
-comparación adicional. Un resultado v2 no sustituye la compuerta real local.
+El prompt v2.0 conservó la detección positiva, pero marcó incorrectamente el
+gerundio simultáneo válido y falló smoke con precisión 0.5. La revisión v2.1
+elimina el anclaje al ejemplo de orden lógico y distingue expresamente gerundio
+simultáneo de posterioridad mediante ejemplos sintéticos diferentes del banco.
+Ésta es la última iteración de prompt antes de exigir un modelo mayor. Qwen sólo
+se reconsiderará si Gemma mejora o si se necesita una comparación adicional.
+Un resultado sintético no sustituye la compuerta real local.
 
 ## Secuencia obligatoria
 

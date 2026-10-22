@@ -184,7 +184,7 @@ def test_cli_synthetic_preflight_does_not_require_real_bank(tmp_path):
     ], provider_factory=forbidden_factory) == 0
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["evaluation_scope"] == "synthetic_screening_only"
-    assert payload["prompt_version"] == "editorial-context-2.0"
+    assert payload["prompt_version"] == "editorial-context-2.1"
     assert len(payload["prompt_sha256"]) == 64
     assert payload["real_dataset"] is None
     assert payload["selected_model"] is None

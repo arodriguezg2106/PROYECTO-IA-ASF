@@ -17,7 +17,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 CATALOG_PATH = Path(__file__).with_name("editorial_catalog.json")
 ABBREVIATIONS_PATH = Path(__file__).with_name("editorial_abbreviations.json")
-EDITORIAL_PROMPT_VERSION = "editorial-context-2.0"
+EDITORIAL_PROMPT_VERSION = "editorial-context-2.1"
 WORDING = {
     "aperturar": "abrir", "accesar": "acceder", "apegarse": "ajustarse o cumplir",
     "generar": "causar, originar o provocar", "estipular": "establecer",
@@ -142,8 +142,13 @@ SYSTEM_PROMPT = (
     "'La auditoría identificó deficiencias en los controles.' => findings vacío; "
     "'Después de recibir la solicitud, la entidad emitió la respuesta correspondiente.' "
     "=> findings vacío; 'Se concluyó que la entidad incumplió la normativa.' => findings "
-    "vacío; 'Antes de recibir la solicitud, la entidad emitió la respuesta correspondiente.' "
-    "=> hallazgo de orden lógico. No cambies el sentido técnico, jurídico o fiscalizador, "
+    "vacío. No infieras el mismo defecto a partir de una palabra o construcción superficial. "
+    "Un gerundio no es un error por sí mismo: es válido cuando expresa una acción simultánea "
+    "o el modo de la acción principal. Ejemplo sintético válido: 'El equipo recorrió el "
+    "archivo verificando los registros.' => findings vacío. Sólo señala posterioridad cuando "
+    "el propio fragmento demuestra que la acción del gerundio sucede después; ejemplo "
+    "sintético: 'La unidad cerró el expediente, notificándolo al día siguiente.' => hallazgo. "
+    "No cambies el sentido técnico, jurídico o fiscalizador, "
     "cifras, importes, porcentajes, fechas, folios, nombres, siglas ni referencias normativas. "
     "problem_span debe ser el substring literal mínimo que demuestra el problema. Si no "
     "puedes citarlo literalmente, devuelve findings vacío. suggested_text debe ser null "

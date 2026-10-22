@@ -74,10 +74,11 @@ class RecordingProvider:
 
 
 def test_prompt_v2_is_conservative_and_hashed():
-    assert EDITORIAL_PROMPT_VERSION == "editorial-context-2.0"
+    assert EDITORIAL_PROMPT_VERSION == "editorial-context-2.1"
     assert '"findings": []' in SYSTEM_PROMPT
     assert "correct_examples" in SYSTEM_PROMPT
     assert "sugerencias meramente estilísticas" in SYSTEM_PROMPT
+    assert "Un gerundio no es un error por sí mismo" in SYSTEM_PROMPT
     assert len(EDITORIAL_PROMPT_SHA256) == 64
 
 
