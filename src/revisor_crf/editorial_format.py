@@ -49,7 +49,7 @@ def _num(value, unit):
     if value is None:return None
     if hasattr(value,unit):return round(getattr(value,unit),3)
     try:return float(value)
-    except (TypeError,ValueError):return str(value)
+    except (TypeError,ValueError):return None
 
 def paragraph_format(paragraph):
     values={k:effective(paragraph,*spec) for k,spec in {
@@ -62,15 +62,19 @@ def paragraph_format(paragraph):
     for key,item in values.items():
         value=item.value
         if item.source=="docDefaults" and value is not None:
-            raw=float(value)
-            if key=="font_size":value=raw/2
-            elif key in {"space_before","space_after"}:value=raw/20
-            elif key in {"left_indent","right_indent","first_line_indent"}:value=raw/567
-            elif key=="line_spacing":value=raw/240
+            if key in {"font_size","space_before","space_after","left_indent",
+                       "right_indent","first_line_indent","line_spacing"}:
+                raw=_num(value,"pt")
+                if raw is None:value=None
+                elif key=="font_size":value=raw/2
+                elif key in {"space_before","space_after"}:value=raw/20
+                elif key in {"left_indent","right_indent","first_line_indent"}:value=raw/567
+                elif key=="line_spacing":value=raw/240
+            elif key=="alignment":value=str(value).upper()
         elif key in {"font_size","space_before","space_after"}:value=_num(value,"pt")
         elif key in {"left_indent","right_indent","first_line_indent"}:value=_num(value,"cm")
         elif key=="alignment" and value is not None:value=getattr(value,"name",str(value))
-        elif key=="line_spacing" and value is not None:value=_num(value,"pt") if hasattr(value,"pt") else float(value)
+        elif key=="line_spacing" and value is not None:value=_num(value,"pt")
         normalized[key]={"value":value,"source":item.source}
     return normalized
 

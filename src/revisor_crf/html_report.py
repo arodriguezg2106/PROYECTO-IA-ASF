@@ -141,8 +141,16 @@ def _editorial_html(report: dict) -> str:
     limitations = "".join(f'<li>{escape(str(x))}</li>' for x in ed.get("visual_verification",{}).get("limitations",[]))
     exclusions = "".join(f'<li><code>{escape(str(x.get("rule_id")))}</code>: {escape(str(x.get("reason")))}</li>' for x in ed.get("rules_excluded",[])) or "<li>Ninguna.</li>"
     rejected = "".join(f'<li><code>{escape(str(x.get("rule_id")))}</code>: {escape(str(x.get("rejection_reason") or "No superó la validación."))}</li>' for x in ed.get("rejected_suggestions",[])) or "<li>Ninguna.</li>"
-    model=ed.get("ollama",{}).get("model") or {}
+    ollama_state=ed.get("ollama",{})
+    model=ollama_state.get("model") or {}
     model_text=f'{model.get("model_id")} ({model.get("status")})' if model else "desactivado"
+    ollama_title=("Sugerencias experimentales de IA · alta cobertura"
+                  if ollama_state.get("research_mode") else "Propuestas experimentales de Ollama")
+    ollama_note=(
+        "Este modo privilegia cobertura y puede producir falsos positivos. Está limitado a "
+        "cinco sugerencias y a documentos sintéticos autorizados. "
+        if ollama_state.get("research_mode") else ""
+    )
     lt=ed.get("language_tool",{})
     if lt.get("enabled"):
         lt_profile = lt.get("profile") or {}
@@ -177,9 +185,9 @@ def _editorial_html(report: dict) -> str:
             '<p class="meta">Estas sugerencias provienen exclusivamente de reglas incluidas en el perfil aprobado. No son errores confirmados y no generan comentarios de Word.</p>'
             '<table class="calc-table"><thead><tr><th>Regla</th><th>Severidad</th><th>Método</th><th>Sugerencia</th><th>Ubicaciones</th><th>Fundamento</th></tr></thead>'
             f'<tbody>{language_tool_html}</tbody></table></details>'
-            '<details class="card"><summary><strong>Propuestas experimentales de Ollama</strong> — '
+            f'<details class="card"><summary><strong>{escape(ollama_title)}</strong> — '
             f'{len(ollama_rows)} grupos posibles; siempre requieren decisión humana</summary>'
-            '<p class="meta">El modelo es opcional y puede quedar parcial sin interrumpir el motor determinístico. Sus propuestas no son errores confirmados, no autocorrigen y no generan comentarios de Word.</p>'
+            f'<p class="meta">{escape(ollama_note)}El modelo es opcional y puede quedar parcial sin interrumpir el motor determinístico. Sus propuestas no son errores confirmados, no autocorrigen y no generan comentarios de Word.</p>'
             '<table class="calc-table"><thead><tr><th>Regla</th><th>Severidad</th><th>Método</th><th>Propuesta</th><th>Ubicaciones</th><th>Fundamento</th></tr></thead>'
             f'<tbody>{ollama_html}</tbody></table></details>'
             f'<details class="card"><summary><strong>Observaciones de formato agrupadas</strong> — {summary.get("format_occurrences", 0)} ocurrencias en {summary.get("groups_by_focus", {}).get("format", 0)} tipos</summary><table class="calc-table"><thead><tr><th>Regla</th><th>Severidad</th><th>Método</th><th>Hallazgo</th><th>Ubicaciones</th><th>Fundamento</th></tr></thead><tbody>{format_html}</tbody></table></details>'

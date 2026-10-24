@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import io
 import asyncio
+import hashlib
 import threading
 import time
 import zipfile
@@ -578,6 +579,123 @@ def test_local_demo_needs_no_proxy_but_cannot_bind_to_network(tmp_path: Path):
 
     with pytest.raises(ValueError, match="loopback"):
         create_app(WebConfig(jobs_dir=tmp_path / "bad", host="0.0.0.0", demo_mode=True))
+
+
+def test_lan_demo_requires_private_host_and_temporary_code(tmp_path: Path):
+    """La demo compartida no acepta enlaces públicos, comodines ni ausencia de código."""
+    access_hash = hashlib.sha256(b"ABC123").hexdigest()
+    with pytest.raises(ValueError, match="IP privada"):
+        WebConfig(
+            jobs_dir=tmp_path / "public",
+            host="8.8.8.8",
+            lan_demo_mode=True,
+            lan_demo_access_code_sha256=access_hash,
+        )
+    with pytest.raises(ValueError, match="código temporal"):
+        WebConfig(
+            jobs_dir=tmp_path / "missing-code",
+            host="192.168.10.20",
+            lan_demo_mode=True,
+        )
+
+
+def test_lan_demo_login_creates_isolated_browser_session(tmp_path: Path):
+    """Cada navegador debe autenticarse antes de usar la demo compartida."""
+    code = "A1B2C3D4E5F6"
+    cfg = WebConfig(
+        jobs_dir=tmp_path / "lan-jobs",
+        host="192.168.10.20",
+        lan_demo_mode=True,
+        lan_demo_access_code_sha256=hashlib.sha256(code.encode()).hexdigest(),
+    )
+    client = TestClient(create_app(cfg), client=("192.168.10.21", 50000))
+
+    denied = client.get("/api/ready")
+    assert denied.status_code == 401
+    redirect = client.get("/", headers={"Accept": "text/html"}, follow_redirects=False)
+    assert redirect.status_code == 303
+    assert redirect.headers["location"] == "/demo/login"
+    assert client.get("/demo/login").status_code == 200
+    assert client.post("/demo/login", data={"code": "incorrecto"}).status_code == 401
+
+    accepted = client.post(
+        "/demo/login", data={"code": code}, follow_redirects=False
+    )
+    assert accepted.status_code == 303
+    assert accepted.headers["location"] == "/"
+    assert "HttpOnly" in accepted.headers["set-cookie"]
+    assert "SameSite=strict" in accepted.headers["set-cookie"]
+
+    home = client.get("/")
+    assert home.status_code == 200
+    assert "Demostración LAN temporal" in home.text
+    assert home.headers["x-revisor-demo"] == "private-lan"
+
+
+def test_experimental_ai_requires_local_demo_editorial_hashes_and_one_worker(tmp_path: Path):
+    allowed = ("a" * 64,)
+    common = {
+        "jobs_dir": tmp_path / "jobs",
+        "ollama_research_enabled": True,
+        "ollama_research_allowed_sha256": allowed,
+        "max_concurrent_jobs": 1,
+    }
+    with pytest.raises(ValueError, match="modo demostración"):
+        WebConfig(editorial_enabled=True, **common)
+    with pytest.raises(ValueError, match="revisión editorial"):
+        WebConfig(demo_mode=True, **common)
+    with pytest.raises(ValueError, match="un solo trabajador"):
+        WebConfig(
+            jobs_dir=tmp_path / "workers", demo_mode=True, editorial_enabled=True,
+            ollama_research_enabled=True,
+            ollama_research_allowed_sha256=allowed,
+            max_concurrent_jobs=2,
+        )
+    with pytest.raises(ValueError, match="hashes sintéticos"):
+        WebConfig(
+            jobs_dir=tmp_path / "hashes", demo_mode=True, editorial_enabled=True,
+            ollama_research_enabled=True,
+            ollama_research_allowed_sha256=("incorrecto",),
+            max_concurrent_jobs=1,
+        )
+    config = WebConfig(demo_mode=True, editorial_enabled=True, **common)
+    assert config.ollama_research_enabled is True
+    assert config.research_document_allowed("a" * 64) is True
+    assert config.research_document_allowed("b" * 64) is False
+
+    all_documents = WebConfig(
+        jobs_dir=tmp_path / "all-documents",
+        demo_mode=True,
+        editorial_enabled=True,
+        ollama_research_enabled=True,
+        ollama_research_allow_all_documents=True,
+        ollama_research_allowed_sha256=(),
+        max_concurrent_jobs=1,
+    )
+    assert all_documents.research_document_allowed("b" * 64) is True
+    with pytest.raises(ValueError, match="requiere habilitar"):
+        WebConfig(
+            jobs_dir=tmp_path / "all-without-provider",
+            demo_mode=True,
+            ollama_research_allow_all_documents=True,
+        )
+
+
+def test_experimental_ai_all_documents_is_visible_in_demo(tmp_path: Path):
+    cfg = WebConfig(
+        jobs_dir=tmp_path / "all-visible",
+        host="127.0.0.1",
+        demo_mode=True,
+        editorial_enabled=True,
+        ollama_research_enabled=True,
+        ollama_research_allow_all_documents=True,
+        max_concurrent_jobs=1,
+    )
+    client = TestClient(create_app(cfg), client=("127.0.0.1", 50000))
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "IA experimental activa para todos los documentos de prueba" in response.text
+    assert "Iniciar Revisión Determinística + IA Experimental" in response.text
 
 
 def test_forwarded_identity_is_rejected_from_untrusted_peer(tmp_path: Path):

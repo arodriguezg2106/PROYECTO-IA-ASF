@@ -1049,9 +1049,11 @@
 
       const ollama = summary.ollama || {};
       const ollamaSummary = document.getElementById("ollama-summary");
-      if (ollama.enabled) {
+      if (ollama.enabled || ollama.research_mode) {
         ollamaSummary.classList.remove("hidden");
-        ollamaSummary.textContent = `Ollama experimental (${ollama.model || "modelo no identificado"}): ${ollama.status || "desconocido"} Â· ${ollama.duration_seconds ?? 0}s Â· ${ollama.errors_count ?? 0} errores tÃ©cnicos. Sus propuestas no modifican el documento ni sustituyen la revisiÃ³n humana.`;
+        const researchLabel = ollama.research_mode ? "Asistente experimental de alta cobertura" : "Ollama experimental";
+        const countLabel = ollama.research_mode ? ` · ${ollama.suggestions_count ?? 0} de máximo ${ollama.max_suggestions ?? 5} sugerencias` : "";
+        ollamaSummary.textContent = `${researchLabel} (${ollama.model || "modelo no identificado"}): ${ollama.status || "desconocido"} · ${ollama.duration_seconds ?? 0}s · ${ollama.errors_count ?? 0} errores técnicos${countLabel}. Puede producir falsos positivos; sus propuestas no modifican el documento ni sustituyen la revisión humana.`;
       } else {
         ollamaSummary.classList.add("hidden");
         ollamaSummary.textContent = "";

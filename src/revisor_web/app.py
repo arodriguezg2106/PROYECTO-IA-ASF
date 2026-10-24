@@ -4,17 +4,19 @@ from __future__ import annotations
 
 import asyncio
 from collections import defaultdict, deque
+import hashlib
 import ipaddress
 import json
 import logging
 import re
+import secrets
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 from .config import WebConfig, config as default_config
@@ -109,6 +111,7 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
     telemetry = PilotTelemetry()
     service = ReviewService(app_config, storage, telemetry)
     rate_limiter = _SlidingWindowLimiter()
+    lan_sessions: dict[str, tuple[str, float]] = {}
 
     cleanup_task: asyncio.Task | None = None
 
@@ -176,7 +179,12 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
     @app.middleware("http")
     async def authentication_and_security_headers(request: Request, call_next):
         """Confia en WIA solo cuando la conexion procede del proxy configurado."""
-        is_public_asset = request.url.path in ("/api/health", "/favicon.ico") or request.url.path.startswith("/static/")
+        is_lan_login = request.url.path == "/demo/login"
+        is_public_asset = (
+            request.url.path in ("/api/health", "/favicon.ico")
+            or request.url.path.startswith("/static/")
+            or (app_config.lan_demo_mode and is_lan_login)
+        )
         if not is_public_asset and app_config.demo_mode:
             # El modo demo sólo puede crearse con host loopback y no confía en
             # ninguna identidad proporcionada por el navegador.
@@ -190,6 +198,26 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
                 request.state.identity = demo_identity
                 response = await call_next(request)
                 response.headers["X-Revisor-Demo"] = "local-only"
+        elif not is_public_asset and app_config.lan_demo_mode:
+            session_token = request.cookies.get("revisor_lan_session", "")
+            session = lan_sessions.get(session_token)
+            now = time.monotonic()
+            if session is None or session[1] <= now:
+                if session is not None:
+                    lan_sessions.pop(session_token, None)
+                accepts_html = "text/html" in request.headers.get("accept", "")
+                response = (
+                    RedirectResponse("/demo/login", status_code=status.HTTP_303_SEE_OTHER)
+                    if accepts_html and request.method == "GET"
+                    else JSONResponse(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        content={"detail": "Se requiere el código temporal de la demo LAN."},
+                    )
+                )
+            else:
+                request.state.identity = session[0]
+                response = await call_next(request)
+                response.headers["X-Revisor-Demo"] = "private-lan"
         elif not is_public_asset:
             peer = request.client.host if request.client else ""
             raw_identity = request.headers.get(app_config.identity_header)
@@ -222,6 +250,58 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
             "default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
             "connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; "
             "form-action 'self'; frame-ancestors 'self'",
+        )
+        return response
+
+    @app.get("/demo/login", response_class=HTMLResponse, include_in_schema=False)
+    async def lan_demo_login_page():
+        if not app_config.lan_demo_mode:
+            raise HTTPException(status_code=404, detail="Ruta no disponible.")
+        return HTMLResponse(
+            """<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Acceso temporal · Revisor-CRF</title><style>
+body{font-family:Segoe UI,sans-serif;background:#07090e;color:#f8fafc;display:grid;
+place-items:center;min-height:100vh;margin:0}main{width:min(420px,88vw);padding:2rem;
+background:#111827;border:1px solid #1e7499;border-radius:12px}label,input,button{
+display:block;width:100%;box-sizing:border-box}input,button{margin-top:.6rem;padding:.8rem;
+border-radius:7px}button{background:#0284c7;color:white;border:0;font-weight:700;
+cursor:pointer}p{color:#94a3b8}</style></head><body><main>
+<h1>Demo LAN de Revisor-CRF</h1>
+<p>Escriba el código temporal mostrado en la computadora anfitriona.</p>
+<form method="post" action="/demo/login"><label for="code">Código temporal</label>
+<input id="code" name="code" type="password" autocomplete="one-time-code" required
+autofocus maxlength="64"><button type="submit">Entrar a la demostración</button>
+</form></main></body></html>"""
+        )
+
+    @app.post("/demo/login", include_in_schema=False)
+    async def lan_demo_login(request: Request):
+        if not app_config.lan_demo_mode:
+            raise HTTPException(status_code=404, detail="Ruta no disponible.")
+        peer = request.client.host if request.client else "unknown"
+        if not rate_limiter.allow_all(((f"peer:{peer}", 10),), "lan-login"):
+            raise HTTPException(status_code=429, detail="Demasiados intentos de acceso.")
+        form = await request.form()
+        supplied = str(form.get("code", "")).strip()
+        supplied_hash = hashlib.sha256(supplied.encode("utf-8")).hexdigest()
+        if not secrets.compare_digest(supplied_hash, app_config.lan_demo_access_code_sha256):
+            raise HTTPException(status_code=401, detail="Código temporal incorrecto.")
+        token = secrets.token_urlsafe(32)
+        identity = f"demo.lan.{secrets.token_hex(8)}"
+        lan_sessions[token] = (
+            identity,
+            time.monotonic() + app_config.lan_demo_session_ttl_seconds,
+        )
+        response = RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+        response.set_cookie(
+            "revisor_lan_session",
+            token,
+            max_age=app_config.lan_demo_session_ttl_seconds,
+            httponly=True,
+            samesite="strict",
+            secure=False,
+            path="/",
         )
         return response
 
@@ -270,12 +350,37 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
         if not index_html_path.exists():
             raise HTTPException(status_code=500, detail="Plantilla no encontrada.")
         content = index_html_path.read_text(encoding="utf-8")
+        if app_config.ollama_research_allow_all_documents:
+            content = content.replace(
+                "Iniciar Revisión Determinística",
+                "Iniciar Revisión Determinística + IA Experimental",
+                1,
+            )
         banner = ""
         if app_config.demo_mode:
+            if app_config.ollama_research_allow_all_documents:
+                provider_text = "IA experimental activa para todos los documentos de prueba"
+            elif app_config.ollama_research_enabled:
+                provider_text = "asistente experimental de IA activo sólo para casos sintéticos autorizados"
+            else:
+                provider_text = "sin proveedores de IA activos"
             banner = (
                 '<div class="alert alert-warning" role="status">'
                 '<strong>Demostración local:</strong> acceso limitado a esta computadora; '
-                'sin SQL Server, Ollama ni servicios externos.'
+                f'sin SQL Server ni servicios externos; {provider_text}.'
+                '</div>'
+            )
+        elif app_config.lan_demo_mode:
+            if app_config.ollama_research_allow_all_documents:
+                provider_text = "IA experimental activa para todos los documentos cargados"
+            elif app_config.ollama_research_enabled:
+                provider_text = "asistente experimental de IA limitado a casos sintéticos autorizados"
+            else:
+                provider_text = "sin proveedores de IA activos"
+            banner = (
+                '<div class="alert alert-warning" role="status">'
+                '<strong>Demostración LAN temporal:</strong> acceso protegido con código; '
+                f'no exponer este puerto a Internet; {provider_text}.'
                 '</div>'
             )
         return HTMLResponse(content=content.replace("<!-- DEMO_BANNER -->", banner))
@@ -313,6 +418,7 @@ def create_app(cfg: WebConfig | None = None) -> FastAPI:
             "max_concurrent_jobs": app_config.max_concurrent_jobs,
             "max_queue_size": app_config.max_queue_size,
             "ollama_enabled": app_config.ollama_enabled,
+            "ollama_research_enabled": app_config.ollama_research_enabled,
             "language_tool_enabled": app_config.language_tool_enabled,
         }
 

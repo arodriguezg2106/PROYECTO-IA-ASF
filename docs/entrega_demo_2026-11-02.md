@@ -21,7 +21,9 @@ válido; una falla del proveedor no interrumpe el resultado base.
 
 ## Evidencia disponible al 22 de octubre
 
-- 259 pruebas aprobadas localmente en Python 3.14 (`259 passed`).
+- 271 pruebas aprobadas localmente en Python 3.14 (`271 passed`).
+- Preflight de Dirección aprobado: cuatro casos sintéticos con resultados
+  esperados verificados antes de abrir la web.
 - Bandit sin hallazgos de severidad alta.
 - `pip-audit` sin vulnerabilidades conocidas tras actualizar `lxml` a 6.1.0 y
   `pytest` a 9.0.3.

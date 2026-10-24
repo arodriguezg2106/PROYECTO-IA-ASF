@@ -36,6 +36,16 @@ def main(argv=None):
         default="demo.local",
         help="Identidad técnica usada exclusivamente por --demo.",
     )
+    parser.add_argument(
+        "--lan-demo",
+        action="store_true",
+        help="Demostración temporal en una red privada con código de acceso.",
+    )
+    parser.add_argument(
+        "--lan-access-code-sha256",
+        default=config.lan_demo_access_code_sha256,
+        help=argparse.SUPPRESS,
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -44,19 +54,35 @@ def main(argv=None):
         loopback = args.host.casefold() == "localhost"
     if args.demo and not loopback:
         parser.error("--demo sólo puede usarse con 127.0.0.1, ::1 o localhost")
+    if args.demo and args.lan_demo:
+        parser.error("--demo y --lan-demo son excluyentes")
 
-    if args.demo:
+    if args.demo or args.lan_demo:
         from .app import create_app
 
-        app_config = replace(
-            config,
-            host=args.host,
-            port=args.port,
-            demo_mode=True,
-            demo_identity=args.demo_identity,
-        )
+        if args.lan_demo:
+            app_config = replace(
+                config,
+                host=args.host,
+                port=args.port,
+                demo_mode=False,
+                lan_demo_mode=True,
+                lan_demo_access_code_sha256=args.lan_access_code_sha256,
+            )
+        else:
+            app_config = replace(
+                config,
+                host=args.host,
+                port=args.port,
+                demo_mode=True,
+                lan_demo_mode=False,
+                demo_identity=args.demo_identity,
+            )
         application = create_app(app_config)
-        print("ADVERTENCIA: modo demostración local; no publicar este puerto en la red.")
+        if args.lan_demo:
+            print("ADVERTENCIA: demo LAN temporal; no publicar este puerto en Internet.")
+        else:
+            print("ADVERTENCIA: modo demostración local; no publicar este puerto en la red.")
         print(f"Abra http://{args.host}:{args.port} en esta computadora.")
         uvicorn.run(application, host=args.host, port=args.port, reload=False)
     else:

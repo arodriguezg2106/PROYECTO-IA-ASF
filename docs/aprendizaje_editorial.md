@@ -1,3 +1,4 @@
+
 # Aprendizaje supervisado para priorización editorial
 
 El mecanismo de aprendizaje no sustituye las reglas ASF ni confirma hallazgos. Su única salida permitida será una probabilidad experimental para ordenar la revisión humana.
@@ -20,13 +21,13 @@ python scripts/build_editorial_learning_dataset.py `
 
 ## Etiquetas
 
-| Decisión humana | Uso en aprendizaje |
-|---|---|
-| `confirmed` | `valid` |
-| `rejected` | `false_positive` |
-| `pending` | excluida |
-| `not_evaluable` | excluida |
-| `audit_team_review` | excluida |
+| Decisión humana      | Uso en aprendizaje |
+| --------------------- | ------------------ |
+| `confirmed`         | `valid`          |
+| `rejected`          | `false_positive` |
+| `pending`           | excluida           |
+| `not_evaluable`     | excluida           |
+| `audit_team_review` | excluida           |
 
 Las decisiones ambiguas no se fuerzan a una clase. El comentario humano sólo se registra como presencia o ausencia; su contenido no se incorpora al dataset.
 

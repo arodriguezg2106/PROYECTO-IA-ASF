@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ipaddress
 import os
+import re
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -70,6 +72,15 @@ class WebConfig:
     # aplicación rechaza este modo si el host configurado no es loopback.
     demo_mode: bool = _env_bool("REVISOR_WEB_DEMO_MODE")
     demo_identity: str = os.getenv("REVISOR_WEB_DEMO_IDENTITY", "demo.local")
+    # Demostración temporal entre equipos de la misma red privada. El código
+    # se conserva únicamente como hash durante la vida del proceso.
+    lan_demo_mode: bool = _env_bool("REVISOR_WEB_LAN_DEMO_MODE")
+    lan_demo_access_code_sha256: str = os.getenv(
+        "REVISOR_WEB_LAN_ACCESS_CODE_SHA256", ""
+    ).strip().lower()
+    lan_demo_session_ttl_seconds: int = int(
+        os.getenv("REVISOR_WEB_LAN_SESSION_TTL_SECONDS", "7200")
+    )
 
     # Directorio de almacenamiento temporal de trabajos
     # Por defecto se utiliza un directorio seguro y excluido por .gitignore
@@ -104,6 +115,21 @@ class WebConfig:
     ollama_timeout_seconds: float = float(
         os.getenv("REVISOR_WEB_OLLAMA_TIMEOUT_SECONDS", "120")
     )
+    # Modo separado para mostrar el modelo rechazado como asistente de alta
+    # cobertura. Sólo admite los hashes sintéticos generados para esta demo.
+    ollama_research_enabled: bool = _env_bool("REVISOR_WEB_OLLAMA_RESEARCH_ENABLED")
+    ollama_research_allow_all_documents: bool = _env_bool(
+        "REVISOR_WEB_OLLAMA_RESEARCH_ALLOW_ALL_DOCUMENTS"
+    )
+    ollama_research_allowed_sha256: tuple[str, ...] = field(
+        default_factory=lambda: tuple(
+            value.strip().lower()
+            for value in os.getenv(
+                "REVISOR_WEB_OLLAMA_RESEARCH_ALLOWED_SHA256", ""
+            ).split(",")
+            if value.strip()
+        )
+    )
 
     def __post_init__(self) -> None:
         if min(
@@ -118,8 +144,25 @@ class WebConfig:
             value in {"*", "0.0.0.0", "::"} for value in self.trusted_proxy_hosts
         ):
             raise ValueError("La lista de proxies confiables no admite comodines.")
-        if self.language_tool_enabled and self.ollama_enabled:
+        if self.demo_mode and self.lan_demo_mode:
+            raise ValueError("Los modos de demostración local y LAN son excluyentes.")
+        if self.lan_demo_mode:
+            try:
+                listen_ip = ipaddress.ip_address(self.host)
+            except ValueError as exc:
+                raise ValueError("La demo LAN requiere una dirección IP privada explícita.") from exc
+            if not listen_ip.is_private or listen_ip.is_loopback or listen_ip.is_unspecified:
+                raise ValueError("La demo LAN requiere una dirección IP privada no loopback.")
+            if not re.fullmatch(r"[0-9a-f]{64}", self.lan_demo_access_code_sha256):
+                raise ValueError("La demo LAN requiere el hash SHA-256 de un código temporal.")
+            if self.lan_demo_session_ttl_seconds < 60:
+                raise ValueError("La sesión de demo LAN debe durar al menos 60 segundos.")
+        if self.language_tool_enabled and (self.ollama_enabled or self.ollama_research_enabled):
             raise ValueError("Sólo puede activarse un proveedor lingüístico a la vez.")
+        if self.ollama_enabled and self.ollama_research_enabled:
+            raise ValueError("El Ollama aprobado y el asistente experimental son excluyentes.")
+        if self.ollama_research_allow_all_documents and not self.ollama_research_enabled:
+            raise ValueError("La apertura experimental requiere habilitar el asistente de investigación.")
         if self.language_tool_enabled:
             if not self.editorial_enabled:
                 raise ValueError("LanguageTool web requiere revisión editorial habilitada.")
@@ -142,7 +185,7 @@ class WebConfig:
             profile = load_ollama_profile(self.ollama_profile)
             if self.ollama_model and self.ollama_model != profile.model_id:
                 raise ValueError("El modelo configurado no coincide con el perfil de Ollama.")
-            if profile.synthetic_only and not self.demo_mode:
+            if profile.synthetic_only and not (self.demo_mode or self.lan_demo_mode):
                 raise ValueError("Un perfil sintético de Ollama sólo puede usarse en modo demostración.")
             from revisor_crf.semantic import SemanticConfig
             SemanticConfig(
@@ -150,10 +193,39 @@ class WebConfig:
                 model=profile.model_id,
                 timeout_seconds=self.ollama_timeout_seconds,
             ).validate()
+        if self.ollama_research_enabled:
+            if not (self.demo_mode or self.lan_demo_mode):
+                raise ValueError("El asistente experimental sólo puede usarse en modo demostración.")
+            if not self.editorial_enabled:
+                raise ValueError("El asistente experimental requiere revisión editorial habilitada.")
+            if self.max_concurrent_jobs != 1:
+                raise ValueError("El asistente experimental requiere un solo trabajador.")
+            if (
+                not self.ollama_research_allow_all_documents
+                and not self.ollama_research_allowed_sha256
+            ) or any(
+                not re.fullmatch(r"[0-9a-f]{64}", value)
+                for value in self.ollama_research_allowed_sha256
+            ):
+                raise ValueError("El asistente experimental requiere hashes sintéticos válidos.")
+            from revisor_crf.ollama_research import MODEL_ID
+            from revisor_crf.semantic import SemanticConfig
+            SemanticConfig(
+                base_url=self.ollama_url,
+                model=MODEL_ID,
+                timeout_seconds=self.ollama_timeout_seconds,
+            ).validate()
 
     @property
     def max_file_size_bytes(self) -> int:
         return self.max_file_size_mb * 1024 * 1024
+
+    def research_document_allowed(self, sha256: str) -> bool:
+        """Autoriza IA experimental por apertura explícita o huella permitida."""
+        return self.ollama_research_enabled and (
+            self.ollama_research_allow_all_documents
+            or sha256 in self.ollama_research_allowed_sha256
+        )
 
 
 config = WebConfig()

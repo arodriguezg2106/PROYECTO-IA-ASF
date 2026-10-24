@@ -93,11 +93,28 @@ Para presentar el flujo desde una sola computadora, instale también
 .\scripts\start_local_demo.ps1
 ```
 
-El modo demo sólo acepta conexiones de loopback, crea un DOCX completamente
-sintético con una discrepancia visible y no utiliza SQL Server ni IIS. Ollama
+El modo demo sólo acepta conexiones de loopback, crea cuatro DOCX completamente
+sintéticos y verifica automáticamente sus resultados antes de abrir la web. Los
+casos muestran una discrepancia, una tabla compleja correcta, una limitación
+neutral y reglas editoriales ASF. No utiliza SQL Server ni IIS. Ollama
 sigue apagado salvo que se proporcione expresamente un perfil sintético válido;
 su falla nunca bloquea el motor determinístico. La guía de presentación está en
-[`docs/demostracion_local.md`](docs/demostracion_local.md).
+[`docs/demo_direccion.md`](docs/demo_direccion.md).
+
+La variante opcional con el asistente Gemma de alta cobertura se inicia con
+`-Editorial -ExperimentalAI`. Está restringida a los cuatro casos sintéticos,
+acepta como máximo cinco sugerencias y no convierte el modelo en proveedor
+aprobado. Consulte sus métricas y advertencias en la guía de la demo.
+
+Para una evaluación temporal desde otra computadora de la misma red privada,
+añada `-LanDemo`. El script genera un código de acceso y muestra la dirección
+LAN que puede compartir con la persona evaluadora. No publique ese puerto en
+Internet; consulte `docs/demo_direccion.md` para los controles y límites.
+
+El interruptor adicional `-ExperimentalAIAllDocuments` permite que la IA
+experimental revise cualquier DOCX cargado durante esa sesión. Requiere
+`-ExperimentalAI`, conserva el límite de cinco sugerencias y no constituye una
+aprobación institucional del modelo.
 
 ## Generar y leer el ejemplo sintético (comprobación de la instalación)
 

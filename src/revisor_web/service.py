@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import Counter, deque
+import hashlib
 import logging
 import threading
 import time
@@ -170,15 +171,28 @@ class ReviewService:
                 if self.config.ollama_enabled:
                     from revisor_crf.ollama_profile import load_ollama_profile
                     ollama_profile = load_ollama_profile(self.config.ollama_profile)
+                with input_path.open("rb") as source_file:
+                    source_sha256 = hashlib.file_digest(source_file, "sha256").hexdigest()
+                research_allowed = self.config.research_document_allowed(source_sha256)
+                ollama_active = self.config.ollama_enabled or research_allowed
+                if research_allowed:
+                    from revisor_crf.ollama_research import (
+                        CONFIDENCE_THRESHOLD, MAX_SUGGESTIONS, MODEL_DIGEST, MODEL_ID,
+                    )
                 editorial_override = EditorialConfig(
-                    ollama_enabled=self.config.ollama_enabled,
-                    experimental_model=self.config.ollama_enabled,
-                    model=(ollama_profile.model_id if ollama_profile else "qwen3.5:4b"),
+                    ollama_enabled=ollama_active,
+                    experimental_model=ollama_active,
+                    model=(MODEL_ID if research_allowed else
+                           ollama_profile.model_id if ollama_profile else "qwen3.5:4b"),
                     base_url=self.config.ollama_url,
                     timeout_seconds=self.config.ollama_timeout_seconds,
                     expected_model_digest=(
+                        MODEL_DIGEST if research_allowed else
                         ollama_profile.model_digest if ollama_profile else None
                     ),
+                    confidence_threshold=(CONFIDENCE_THRESHOLD if research_allowed else 0.8),
+                    ollama_prompt_mode=("research_high_recall" if research_allowed else "approved"),
+                    ollama_max_suggestions=(MAX_SUGGESTIONS if research_allowed else 200),
                     language_tool_enabled=self.config.language_tool_enabled,
                     language_tool_experimental=False,
                     language_tool_profile_path=(
@@ -193,7 +207,10 @@ class ReviewService:
                 catalog_path=None,
                 semantic=False,
                 editorial=self.config.editorial_enabled,
-                editorial_ollama=self.config.ollama_enabled,
+                editorial_ollama=bool(editorial_override and editorial_override.ollama_enabled),
+                editorial_experimental_model=bool(
+                    editorial_override and editorial_override.experimental_model
+                ),
                 editorial_language_tool=self.config.language_tool_enabled,
                 editorial_config_override=editorial_override,
             )
@@ -218,6 +235,18 @@ class ReviewService:
 
             # Resumen técnico sin contener texto confidencial de los párrafos
             editorial_review = result.get("editorial_review") or {}
+            if self.config.ollama_research_enabled and not (
+                editorial_override and editorial_override.ollama_enabled
+            ):
+                editorial_review.setdefault("ollama", {}).update({
+                    "enabled": False,
+                    "experimental": True,
+                    "research_mode": True,
+                    "status": "skipped_not_allowlisted",
+                    "errors": [],
+                    "suggestions": 0,
+                    "max_suggestions": 5,
+                })
             language_tool = editorial_review.get("language_tool") or {}
             language_tool_profile = language_tool.get("profile") or {}
             summary = {
@@ -250,6 +279,14 @@ class ReviewService:
                     "model": ((editorial_review.get("ollama") or {}).get("model") or {}).get("model_id"),
                     "duration_seconds": (editorial_review.get("ollama") or {}).get("duration_seconds", 0.0),
                     "errors_count": len((editorial_review.get("ollama") or {}).get("errors") or []),
+                    "research_mode": bool((editorial_review.get("ollama") or {}).get("research_mode")),
+                    "suggestions_count": (editorial_review.get("ollama") or {}).get("suggestions", 0),
+                    "max_suggestions": (editorial_review.get("ollama") or {}).get("max_suggestions"),
+                    "document_scope": (
+                        "all_test_documents"
+                        if self.config.ollama_research_allow_all_documents
+                        else "allowlisted_synthetic"
+                    ) if self.config.ollama_research_enabled else None,
                 },
             }
 

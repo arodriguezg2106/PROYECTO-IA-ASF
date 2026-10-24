@@ -52,6 +52,8 @@ class EditorialConfig:
     excluded_style_patterns: tuple[str, ...] = ("title", "heading", "título", "subtítulo", "caption")
     check_format: bool = True
     experimental_model: bool = False
+    ollama_prompt_mode: str = "approved"
+    ollama_max_suggestions: int = 200
     language_tool_enabled: bool = False
     language_tool_experimental: bool = False
     language_tool_url: str = "http://127.0.0.1:8081/v2"
@@ -94,6 +96,8 @@ class EditorialConfig:
             or result.max_fragment_chars < 100
             or result.min_paragraph_words < 1
             or result.max_paragraph_words <= result.min_paragraph_words
+            or result.ollama_max_suggestions < 1
+            or result.ollama_prompt_mode not in {"approved", "research_high_recall"}
         )
         if _invalid_config:
             raise ValueError("Configuración editorial fuera de rango.")
@@ -119,7 +123,11 @@ class OllamaEditorialProvider:
             if observed != config.expected_model_digest:
                 raise RuntimeError("ollama_model_digest_mismatch")
     def review(self, request, schema):
-        payload = {"model": self.config.model, "messages":[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":json.dumps(request, ensure_ascii=False)}],
+        prompt = SYSTEM_PROMPT
+        if self.config.ollama_prompt_mode == "research_high_recall":
+            from .ollama_research import SYSTEM_PROMPT as RESEARCH_SYSTEM_PROMPT
+            prompt = RESEARCH_SYSTEM_PROMPT
+        payload = {"model": self.config.model, "messages":[{"role":"system","content":prompt},{"role":"user","content":json.dumps(request, ensure_ascii=False)}],
             "stream":False,"think":False,"format":schema,"options":{"temperature":self.config.temperature,"seed":20260923}}
         response = self.client._request("chat", payload)
         return (response.get("message") or {}).get("content")
@@ -590,18 +598,24 @@ def review_editorial(path, document, config=None, catalog_path=None, provider=No
         method_durations["format"]=round(time.perf_counter()-phase_started,6)
     else:
         excluded.extend({"rule_id":r["rule_id"],"reason":"Comprobaciones de formato desactivadas."} for r in rules if r["detection_type"]=="format")
-    contextual=[r for r in rules if r["requires_context"] and r["detection_type"]=="contextual"]; errors=[]; rejected=[]; calls=0
+    contextual=[r for r in rules if r["requires_context"] and r["detection_type"]=="contextual"]; errors=[]; rejected=[]; calls=0; ollama_suggestions=0
     model_info=None; ollama_started=time.perf_counter()
     if config.ollama_enabled:
         from .editorial_models import authorize_model
         descriptor=authorize_model(config.model,experimental=config.experimental_model)
         model_info=asdict(descriptor)
-        client=provider or OllamaEditorialProvider(config)
-        for p,table,cell in _blocks(document["blocks"]):
+        try:
+            client=provider or OllamaEditorialProvider(config)
+        except (RuntimeError, ValueError, OSError) as exc:
+            client=None
+            errors.append({"paragraph_id":None,"rule_id":None,"code":str(exc)})
+        for p,table,cell in (_blocks(document["blocks"]) if client is not None else ()):
+            if ollama_suggestions >= config.ollama_max_suggestions:break
             text=p.get("text","")[:config.max_fragment_chars]
             relevant=retrieve_rules(text,contextual); allowed={r["rule_id"]:r for r in relevant}
             if not text.strip() or not allowed:continue
             for rule_id, rule in allowed.items():
+                if ollama_suggestions >= config.ollama_max_suggestions:break
                 request={"fragment":text,"location":{"paragraph_id":p["id"],"headings":p.get("headings",[])},"rules":[rule],"protected_elements":protected_elements(text)}
                 try:
                     calls+=1; rows=_parse_response(client.review(request,ollama_schema([rule_id])),{rule_id})
@@ -614,7 +628,7 @@ def review_editorial(path, document, config=None, catalog_path=None, provider=No
                         if row["suggested_text"]:
                             safety=verify_protected(text,row["suggested_text"])
                             if not safety["safe"]: item["validation_status"]="rejected"; item["rejection_reason"]="La propuesta altera elementos protegidos."; item["protection_check"]=safety; rejected.append(item); continue
-                        findings.append(item)
+                        findings.append(item); ollama_suggestions+=1
                 except (RuntimeError,ValueError) as exc: errors.append({"paragraph_id":p["id"],"rule_id":rule_id,"code":str(exc)})
         method_durations["ollama"]=round(time.perf_counter()-ollama_started,6)
     language_tool_errors=[]; language_tool_calls=0
@@ -703,12 +717,28 @@ def review_editorial(path, document, config=None, catalog_path=None, provider=No
     _ollama_status = {
         "enabled": config.ollama_enabled,
         "experimental": config.experimental_model,
+        "research_mode": config.ollama_prompt_mode == "research_high_recall",
+        "suggestions": ollama_suggestions,
+        "max_suggestions": config.ollama_max_suggestions,
         "model": model_info,
         "calls": calls,
         "errors": errors,
         "status": "complete" if not errors else "partial",
         "duration_seconds": method_durations.get("ollama", 0.0),
     }
+    if config.ollama_prompt_mode == "research_high_recall":
+        from .ollama_research import (
+            EVALUATION_SHA256, METRICS, MODEL_DIGEST, PROMPT_SHA256,
+            PROMPT_VERSION, SOURCE_COMMIT,
+        )
+        _ollama_status["research_evidence"] = {
+            "prompt_version": PROMPT_VERSION,
+            "prompt_sha256": PROMPT_SHA256,
+            "evaluation_sha256": EVALUATION_SHA256,
+            "source_commit": SOURCE_COMMIT,
+            "model_digest": MODEL_DIGEST,
+            "metrics": METRICS,
+        }
     _lt_status = {
         "enabled": config.language_tool_enabled,
         "experimental": config.language_tool_experimental,
@@ -752,6 +782,8 @@ def review_editorial(path, document, config=None, catalog_path=None, provider=No
         "max_paragraph_words": config.max_paragraph_words,
         "check_format": config.check_format,
         "experimental_model": config.experimental_model,
+        "ollama_prompt_mode": config.ollama_prompt_mode,
+        "ollama_max_suggestions": config.ollama_max_suggestions,
         "language_tool_experimental": config.language_tool_experimental,
     }
     return {

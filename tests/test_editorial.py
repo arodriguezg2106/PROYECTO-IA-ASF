@@ -26,7 +26,12 @@ from revisor_crf.editorial_report import render_markdown
 from revisor_crf.html_report import render_html
 from revisor_crf.review import review_document
 from revisor_crf.cli import main as cli_main
+from revisor_crf.commented_docx import export_commented_docx
 from revisor_crf.language_tool import CachedLanguageToolProvider, LanguageToolProvider
+from revisor_crf.ollama_research import (
+    EVALUATION_SHA256 as RESEARCH_EVALUATION_SHA256,
+    PROMPT_SHA256 as RESEARCH_PROMPT_SHA256,
+)
 from revisor_crf.sarif_report import render_sarif
 from revisor_crf.editorial_learning import apply_priorities, build_dataset, learning_records, load_json, redact_text
 
@@ -73,6 +78,21 @@ class RecordingProvider:
         return json.dumps({"findings":[]})
 
 
+class HighRecallProvider:
+    def review(self, request, schema):
+        text = request["fragment"]
+        rule = request["rules"][0]
+        return json.dumps({"findings": [{
+            "rule_id": rule["rule_id"],
+            "category": rule["category"],
+            "severity": "suggestion",
+            "problem_span": text,
+            "message": "Sugerencia experimental que requiere revisión humana.",
+            "suggested_text": None,
+            "confidence": 0.7,
+        }]})
+
+
 def test_prompt_v2_is_conservative_and_hashed():
     assert EDITORIAL_PROMPT_VERSION == "editorial-context-2.1"
     assert '"findings": []' in SYSTEM_PROMPT
@@ -80,6 +100,11 @@ def test_prompt_v2_is_conservative_and_hashed():
     assert "sugerencias meramente estilísticas" in SYSTEM_PROMPT
     assert "Un gerundio no es un error por sí mismo" in SYSTEM_PROMPT
     assert len(EDITORIAL_PROMPT_SHA256) == 64
+
+
+def test_high_recall_prompt_and_evidence_are_pinned():
+    assert RESEARCH_PROMPT_SHA256 == "3fa1a7b14e1dbb14493bd11e1ca1434392f748bb2c3a37c08499efdb9e44e2e1"
+    assert RESEARCH_EVALUATION_SHA256 == "43662d3e6d19ab91f4eb7a2273489ea5306611f14bf5f4e97e0d930bfed8fb7a"
 
 
 def test_ollama_receives_exactly_one_rule_per_request(tmp_path):
@@ -106,6 +131,66 @@ def test_ollama_failure_does_not_stop_review(tmp_path):
     assert result["editorial_review"]["ollama"]["status"]=="partial"
     assert result["editorial_review"]["findings"]
 
+
+def test_high_recall_research_mode_is_capped_and_labelled(tmp_path):
+    doc = Document()
+    for index in range(8):
+        doc.add_paragraph(
+            f"La unidad sintética número {index} comunicó que su informe contenía observaciones."
+        )
+    path = tmp_path / "research.docx"
+    doc.save(path)
+    config = EditorialConfig(
+        ollama_enabled=True,
+        experimental_model=True,
+        model="gemma3:12b",
+        check_format=False,
+        confidence_threshold=0.7,
+        ollama_prompt_mode="research_high_recall",
+        ollama_max_suggestions=5,
+    )
+    report = review_document(
+        path, editorial=True, editorial_provider=HighRecallProvider(),
+        editorial_config_override=config,
+    )
+    review = report["editorial_review"]
+    suggestions = [
+        item for item in review["findings"] if item["detection_method"] == "ollama"
+    ]
+    assert len(suggestions) == 5
+    assert all(item["requires_human_review"] for item in suggestions)
+    assert review["ollama"]["research_mode"] is True
+    assert review["ollama"]["max_suggestions"] == 5
+    html = render_html(report)
+    assert "Sugerencias experimentales de IA · alta cobertura" in html
+    assert "puede producir falsos positivos" in html
+    commented = export_commented_docx(path, report, tmp_path / "research-commented.docx")
+    assert commented["comments_added"] == 0
+
+
+def test_ollama_initialization_failure_is_fail_open(tmp_path, monkeypatch):
+    import revisor_crf.editorial as editorial_module
+
+    def unavailable(_config):
+        raise RuntimeError("ollama_unavailable")
+
+    monkeypatch.setattr(editorial_module, "OllamaEditorialProvider", unavailable)
+    path = make_doc(tmp_path, "La unidad utilizó el registro y/o la documentación disponible.")
+    config = EditorialConfig(
+        ollama_enabled=True,
+        experimental_model=True,
+        model="gemma3:12b",
+        check_format=False,
+        ollama_prompt_mode="research_high_recall",
+        ollama_max_suggestions=5,
+    )
+    report = review_document(path, editorial=True, editorial_config_override=config)
+    assert report["editorial_review"]["ollama"]["status"] == "partial"
+    assert any(
+        item["rule_id"] == "ASF-ED-I-05-YO"
+        for item in report["editorial_review"]["findings"]
+    )
+
 def test_inherited_word_style_and_reports(tmp_path):
     report=review_document(make_doc(tmp_path,"Texto correcto heredado."),editorial=True)
     assert not [x for x in report["editorial_review"]["findings"] if x["rule_id"]=="ASF-ED-III-03-02"]
@@ -131,6 +216,29 @@ def test_effective_format_precedence_page_margins_and_evidence(tmp_path):
     finding=next(x for x in report["findings"] if x["rule_id"]=="ASF-ED-III-03-02")
     assert finding["effective_value"]["font_size"]["value"]==12.0
     assert finding["value_source"]=="mixed" and finding["structural_evidence"]
+
+def test_doc_defaults_font_name_is_not_parsed_as_numeric_size(tmp_path):
+    """Una fuente OOXML predeterminada textual no debe abortar la revisión."""
+    doc=Document(); normal=doc.styles["Normal"]; normal.font.name=None; normal.font.size=None
+    defaults=doc.styles.element.find(qn("w:docDefaults"))
+    rpr_default=defaults.find(qn("w:rPrDefault"))
+    rpr=rpr_default.find(qn("w:rPr"))
+    fonts=rpr.find(qn("w:rFonts"))
+    if fonts is None:
+        fonts=OxmlElement("w:rFonts"); rpr.append(fonts)
+    fonts.set(qn("w:ascii"),"Times New Roman")
+    size=rpr.find(qn("w:sz"))
+    if size is None:
+        size=OxmlElement("w:sz"); rpr.append(size)
+    size.set(qn("w:val"),"22")
+    doc.add_paragraph("Este párrafo de prueba utiliza las propiedades predeterminadas del documento.")
+    path=tmp_path/"doc-defaults.docx"; doc.save(path)
+
+    fmt=inspect_format(path)["paragraphs"][0]["format"]
+    assert fmt["font_name"]=={"value":"Times New Roman","source":"docDefaults"}
+    assert fmt["font_size"]=={"value":11.0,"source":"docDefaults"}
+    report=review_document(path,editorial=True)
+    assert isinstance(report["editorial_review"]["findings"],list)
 
 def test_acronym_first_mention_and_deduplicated_glossary(tmp_path):
     report=review_document(make_doc(tmp_path,"La Secretaría de Hacienda y Crédito Público (SHCP) informó a la ASF. Después, la SHCP respondió."),editorial=True)["editorial_review"]
