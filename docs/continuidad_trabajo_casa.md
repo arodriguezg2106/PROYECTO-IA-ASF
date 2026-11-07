@@ -1,133 +1,129 @@
-# Continuidad del proyecto en otro equipo
+# Continuidad del proyecto en casa
 
-Estado respaldado: 16 de octubre de 2026. El repositorio contiene el código,
-pruebas, catálogos, configuraciones de ejemplo y generadores de paquetes. Los
-documentos y resultados institucionales no se versionan.
+Respaldo: **6 de noviembre de 2026**. Rama: `respaldo/casa-2026-11-06`.
+Base anterior: `000d8e5`, del 23 de octubre de 2026.
 
-## Objetivo de la sesión en casa
+El respaldo contiene código, pruebas, catálogos sintéticos, configuraciones de
+ejemplo y documentación. Los documentos reales, libros, resultados y claves
+permanecen fuera de GitHub. No es una versión institucional aprobada.
 
-La sesión doméstica tiene un alcance deliberadamente pequeño:
+## Recuperar el respaldo en Windows
 
-1. clonar y verificar el código publicado;
-2. inventariar la PC de escritorio y su GPU sin comprar ni instalar hardware;
-3. comprobar Ollama con un modelo pequeño y texto sintético;
-4. ejecutar el preflight y, sólo si la memoria lo permite, las compuertas
-   sintéticas del candidato de 9B;
-5. guardar únicamente métricas técnicas, nunca documentos o Excel reales.
-
-La guía paso a paso está en
-[`laboratorio_ollama_equipo_casa.md`](laboratorio_ollama_equipo_casa.md). Este
-documento es la lista corta para retomar sin reconstruir el contexto.
-
-## Preparación
+Para una instalación nueva, desde la carpeta donde se quiera guardar el proyecto:
 
 ```powershell
-git clone https://github.com/arodriguezg2106/PROYECTO-IA-ASF.git
+git clone --branch respaldo/casa-2026-11-06 https://github.com/arodriguezg2106/PROYECTO-IA-ASF.git
 cd PROYECTO-IA-ASF
 py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python -m pip install -e .
-python -m pytest -q
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements-web.txt -r requirements-reporting.txt
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe -m pytest -q
+git log -1 --oneline
+git status --short
 ```
 
-Después de clonar, `git log -1 --oneline` debe mostrar el último commit publicado
-y `git status --short` debe quedar vacío. La línea base vigente es de **248
-pruebas**. El modo ordinario es determinista, `final`, sin autocorrección y sin
-modificar el DOCX.
+Se puede usar Python 3.14 en lugar de 3.11. La comprobación local del 6 de
+noviembre se realizó con Python 3.14.0: **323 pruebas aprobadas en 122.80 s**.
+La ejecución actual en Python 3.11 está pendiente. No se necesita activar el
+entorno ni cambiar la política de ejecución de PowerShell.
 
-Si la computadora usa Linux:
+Si ya existe un clon, guardar primero sus cambios propios y después ejecutar:
 
-```bash
-git clone https://github.com/arodriguezg2106/PROYECTO-IA-ASF.git
-cd PROYECTO-IA-ASF
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python -m pip install -e .
-python -m pytest -q
+```powershell
+git fetch origin
+git switch respaldo/casa-2026-11-06
+git pull --ff-only
 ```
 
-## Datos que deben obtenerse por medios institucionales
+No usar `reset --hard`, `clean` ni sobrescribir cambios del equipo doméstico.
+Para continuar sobre una rama de trabajo nueva:
 
-GitHub no contiene:
+```powershell
+git switch -c trabajo/casa-2026-11
+```
 
-- CRF reales (`*.docx`);
-- fuente normativa PDF 2IN2RE01;
-- libros de validación humana (`*.xlsx`);
-- corpus y reportes en `results/`;
-- cachés SQLite;
-- Java, LanguageTool u Ollama;
-- tokens o configuraciones locales.
-
-En otro equipo institucional, esos archivos sólo se sincronizan mediante medios
-autorizados. En la computadora doméstica **no se copiará ninguno**: las pruebas
-de Ollama utilizarán exclusivamente los bancos sintéticos versionados.
+En Linux se puede utilizar `python3 -m venv .venv` y sustituir
+`.\.venv\Scripts\python.exe` por `.venv/bin/python` en los comandos Python.
 
 ## Estado que debe conservarse
 
-- Motor determinístico y web: funcionales.
-- LanguageTool: infraestructura implementada, pero perfil **rechazado** por
-  exhaustividad 0.4737 frente al mínimo 0.75; permanece apagado.
-- Ollama: fuera del MVP y sólo para investigación sintética.
-- SQL Server: aplazado hasta la compuerta formal de TI.
-- Banco real: bloqueado hasta completar las 26 decisiones y justificaciones de
-  adjudicación en el entorno institucional.
+- Motor determinista, lector DOCX, reglas editoriales parciales, reportes y
+  controles web implementados. El original se conserva y no hay autocorrección.
+- Cuatro casos sintéticos de demostración comprobados nuevamente.
+- Banco editorial determinista: 35 casos, 23 detecciones correctas, cero falsos
+  positivos y cero omisiones sobre ese banco. No acredita cobertura general.
+- Flujo CLI comprobado con JSON, HTML, Markdown, SARIF y copia DOCX comentada.
+- Banco real: 16 pares/32 ejemplos y 15 exclusiones. La adjudicación anterior de
+  26 casos ya está importada en el entorno institucional; no hay que repetirla.
+- LanguageTool permanece rechazado y apagado: evaluación histórica de 90 casos,
+  precisión 1.0, exhaustividad 0.4419 y cuatro propuestas inseguras.
+- Los modelos editoriales locales evaluados siguen rechazados o experimentales.
+  No reiniciar como candidatos Qwen 9B o Gemma 12B por seguir una guía antigua.
+- Gemma 4 31B, `consistency-v1`: 120 de 180 intentos; validación B no ejecutada.
+  La evaluación fue cerrada incompleta por vencimiento de su ventana. Conclusión:
+  no validado. No reanudar B ni reiniciar el diario desde este clon.
+- La preservación y el cierre de v1 del 5 de noviembre están completados. La
+  adjudicación humana de sus penalizaciones sigue pendiente; es un trabajo
+  distinto de la adjudicación del banco real anterior.
+- SQL Server y cola durable aplazados a una fase posterior al piloto y a las
+  decisiones de TI. No hay modelo de aprendizaje entrenado activo.
 
-## LanguageTool local
+## Siguiente trabajo útil
 
-No es necesario instalarlo durante la sesión doméstica de Ollama. Esta sección
-se conserva únicamente para reconstruir el entorno completo en otro equipo
-institucional.
+El frente de primera entrega puede avanzar separado de la investigación de IA:
 
-Instale Java 17 y LanguageTool 6.6. Las rutas se pasan como parámetros, porque las predeterminadas corresponden al equipo de desarrollo:
+1. Acordar alcance y aceptación de una entrega local determinista.
+2. Revisar instalación limpia, rendimiento, aislamiento, purga y seguridad
+   dinámica sobre una versión identificada. Las 323 pruebas no sustituyen esas
+   comprobaciones ni una inspección visual en Microsoft Word.
+3. Mejorar instrucciones de uso y preparar un paquete reproducible.
+4. Para investigación, preparar metodología y pruebas locales del evaluador
+   nuevo. Los casos conocidos sirven para desarrollo; no son banco reservado.
+
+La revisión de 30 registros numéricos, la adjudicación de C11/C13/C17/C20 y
+Sonora, y cualquier validación de documentos reales requieren los materiales y
+el contexto autorizados del entorno institucional. La muestra numérica revisada
+el 6 de noviembre conserva sus campos humanos vacíos.
+
+Referencias actuales:
+
+- [Plan de validación editorial](plan_trabajo_validacion_editorial_2026-11.md).
+- [Cierre de consistency-v1](cierre_consistencia_v1_2026-11-05.md).
+- [Expediente de entrega](entrega_demo_2026-11-02.md).
+- [Condiciones del piloto institucional](piloto_web_operacion.md).
+- [Revisión editorial y límites](revision_editorial_asf.md).
+
+Las guías antiguas de laboratorio conservan antecedentes. Su orden de trabajo y
+sus métricas anteriores no sustituyen este estado actualizado.
+
+## Prueba sintética sin servicios externos
 
 ```powershell
-.\scripts\start_languagetool.ps1 `
-  -JavaExe "C:\ruta\a\java.exe" `
-  -LanguageToolDir "C:\ruta\a\LanguageTool"
+$env:PYTHONPATH = 'src;scripts'
+.\.venv\Scripts\python.exe scripts/verify_direction_demo.py
+.\.venv\Scripts\python.exe scripts/evaluate_editorial.py --regenerate
 ```
 
-LanguageTool sólo admite loopback, permanece experimental y marca sus propuestas para revisión humana.
+Los generadores crean documentos inventados y resultados locales excluidos de
+Git. Para iniciar la demostración web determinista:
 
-## Ollama
+```powershell
+.\scripts\start_local_demo.ps1
+```
 
-Ollama sigue integrado pero desactivado por defecto. `qwen3.5:4b` y `qwen3:8b` están rechazados para revisión ordinaria. Un modelo nuevo debe superar el banco contextual antes de aprobarse.
+No se requieren Ollama, LanguageTool, GPU, SQL Server ni claves para estos pasos.
+La investigación Cloud no se inicia automáticamente. El nuevo presupuesto de
+inferencia del plan de noviembre está pendiente de autorización.
 
-En la PC doméstica, `qwen3.5:4b` se usa únicamente para comprobar instalación,
-API y uso CPU/GPU. No se vuelve a considerar candidato. El primer candidato a
-evaluar es `qwen3.5:9b`, pero sólo se descargará después de conocer RAM, VRAM,
-espacio libre y compatibilidad de la GPU.
+## Materiales que no forman parte del respaldo
 
-## Orden exacto al llegar a casa
+- CRF reales, documentos de entrada y PDF normativo.
+- Libros de validación humana, corpus y bancos con texto institucional.
+- `results/`, incluida la preservación local completa de v1 y la evidencia del
+  diagnóstico del 6 de noviembre. Las notas y métricas resumidas sí están en docs.
+- Cachés, bases SQLite, entornos virtuales y dependencias instaladas.
+- Java, LanguageTool, modelos de Ollama y claves o configuraciones locales.
 
-1. Clonar el repositorio y confirmar las 248 pruebas.
-2. Ejecutar únicamente el inventario de la fase 1 de la guía de Ollama.
-3. Anotar el modelo exacto de GPU, VRAM, módulos de RAM y espacio libre.
-4. No formatear ni instalar Linux hasta revisar ese inventario.
-5. Si el equipo actual es utilizable, instalar Ollama y probar `qwen3.5:4b` con
-   el texto sintético indicado en la guía.
-6. Ejecutar el preflight doméstico con `--preflight --synthetic-only`.
-7. Descargar `qwen3.5:9b` sólo si el cuadro de decisión de hardware lo permite.
-8. Detenerse ante intercambio continuo de memoria, temperatura insegura,
-   reinicios o respuestas inválidas.
-
-## Estado funcional
-
-- Resolución de formato OOXML efectivo.
-- Reglas deterministas de cifras, porcentajes, siglas, abreviaturas, redacción y cuadros.
-- Reportes JSON, HTML, Markdown y SARIF.
-- Formato agrupado en segundo plano; prioridad para tablas, cifras, concordancia, claridad y ortografía.
-- LanguageTool local con caché sin texto y filtro ortográfico.
-- Registro y compuerta de modelos contextuales.
-- Banco contextual sintético y evaluación reproducible.
-- Captura de decisiones humanas y dataset anonimizado para un futuro priorizador.
-- Extracción real de comentarios anclados y pares antes/después del control de cambios.
-
-`validacion_cambios_editoriales.xlsx` y la segunda revisión ya se importaron en
-el entorno institucional. La adjudicación de 26 casos permanece incompleta. Ese
-trabajo no se continuará en casa: la sesión doméstica termina al obtener el
-inventario, la prueba técnica de Ollama y, si el hardware lo permite, el
-resultado sintético de `qwen3.5:9b`.
+En casa se trabaja con código y datos sintéticos. Los materiales institucionales
+se conservan y respaldan por los medios autorizados correspondientes.

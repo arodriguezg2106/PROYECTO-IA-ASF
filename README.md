@@ -248,6 +248,18 @@ python scripts/evaluate_editorial_context.py --preflight
 
 El preflight no contacta Ollama. La ejecución completa exige, en orden, 2 casos smoke, 10 difíciles, 30 finales y el banco real pareado local, siempre con tres repeticiones. Los candidatos vigentes son `qwen3.5:9b` y `gemma3:12b`; `qwen3.5:27b` exige al menos 24 GB de memoria de acelerador. `qwen3.5:4b` y `qwen3:8b` permanecen rechazados. Los umbrales, el contrato del banco real y los comandos del servidor se documentan en [`docs/evaluacion_modelos_contextuales.md`](docs/evaluacion_modelos_contextuales.md).
 
+Para comparar modelos mediante una API externa sin GPU local, consulte
+[`docs/evaluacion_ollama_cloud.md`](docs/evaluacion_ollama_cloud.md). La herramienta
+se limita al banco sintético, permite un preflight sin red y no habilita Cloud
+en la aplicación web. Antes de ejecutar inferencia, verifique sus créditos: una
+suscripción de $0 no garantiza llamadas gratuitas.
+
+La evaluación de consistencia de Gemma 4 31B está descrita en
+[`docs/evaluacion_consistencia_gemma4.md`](docs/evaluacion_consistencia_gemma4.md).
+El protocolo `consistency-v1` requiere revisión humana de las 30 etiquetas antes
+de usar la API y separa selección, validación A y validación B, con un máximo de
+180 intentos y controles de reanudación sin duplicados.
+
 ## Ejecutar las pruebas (desarrolladores)
 
 Requiere `pytest` (incluido en `requirements.txt`) y el proyecto instalado en modo editable.

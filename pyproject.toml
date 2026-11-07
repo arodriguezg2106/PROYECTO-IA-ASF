@@ -17,7 +17,7 @@ revisor-crf-semantic-service = "revisor_crf.semantic_service:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-revisor_crf = ["editorial_catalog.json", "editorial_models.json", "editorial_abbreviations.json"]
+revisor_crf = ["editorial_catalog.json", "editorial_models.json", "editorial_abbreviations.json", "editorial_consistency_bank.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
