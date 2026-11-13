@@ -1,7 +1,7 @@
 # Continuidad del proyecto en casa
 
-Respaldo: **6 de noviembre de 2026**. Rama: `respaldo/casa-2026-11-06`.
-Base anterior: `000d8e5`, del 23 de octubre de 2026.
+Respaldo: **13 de noviembre de 2026**. Rama: `respaldo/casa-2026-11-13`.
+Base anterior: `7e3e59b`, del 6 de noviembre de 2026 (rama `respaldo/casa-2026-11-06`).
 
 El respaldo contiene código, pruebas, catálogos sintéticos, configuraciones de
 ejemplo y documentación. Los documentos reales, libros, resultados y claves
@@ -12,7 +12,7 @@ permanecen fuera de GitHub. No es una versión institucional aprobada.
 Para una instalación nueva, desde la carpeta donde se quiera guardar el proyecto:
 
 ```powershell
-git clone --branch respaldo/casa-2026-11-06 https://github.com/arodriguezg2106/PROYECTO-IA-ASF.git
+git clone --branch respaldo/casa-2026-11-13 https://github.com/arodriguezg2106/PROYECTO-IA-ASF.git
 cd PROYECTO-IA-ASF
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
@@ -32,7 +32,7 @@ Si ya existe un clon, guardar primero sus cambios propios y después ejecutar:
 
 ```powershell
 git fetch origin
-git switch respaldo/casa-2026-11-06
+git switch respaldo/casa-2026-11-13
 git pull --ff-only
 ```
 
